@@ -12,9 +12,5 @@ export class MoveCounter {
     updateMovesLeft() {
         this.movesLeft--;
         this.state.updateMovesLeft(this.movesLeft);
-
-        if (this.movesLeft == 0) {
-            this.state.isLevelLose = true;
-        }
     }
 }

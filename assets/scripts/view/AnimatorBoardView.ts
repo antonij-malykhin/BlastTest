@@ -44,6 +44,9 @@ export class AnimatorBoardView extends cc.Component {
     @property(cc.Integer)
     private animationCollapseSimpleTileScaleDownValue = 0;
 
+    @property(cc.Integer)
+    private animationShuffleSpawnDuration = 0.2;
+
     private boardView: BoardView;
     private tileViews: Map<string, TileView>;
 
@@ -55,8 +58,8 @@ export class AnimatorBoardView extends cc.Component {
     public async animateSwap(tile1: Tile, tile2: Tile) :  Promise<void> {
         if (!tile1 || !tile2) return;
 
-        const node1 = this.tileViews.get(`${tile1.position.row},${tile1.position.column}`)?.node;
-        const node2 = this.tileViews.get(`${tile2.position.row},${tile2.position.column}`)?.node;
+        const node1 = this.tileViews.get(tile1.id)?.node;
+        const node2 = this.tileViews.get(tile2.id)?.node;
 
         if (!node1 || !node2) return;
 
@@ -69,13 +72,13 @@ export class AnimatorBoardView extends cc.Component {
         ]);
     }
 
-    public async animateCollapsesToMegaTile(collapseTiles: Tile[], superTileStartPosition: Position) : Promise<void> {
+    public async animateCollapsesToMegaTile(collapseTiles: Tile[], megaTile: Tile) : Promise<void> {
         const animations: Promise<void>[] = [];
 
-        const centerPos = this.boardView.getViewTilePosition(superTileStartPosition.row, superTileStartPosition.column);
+        const centerPos = this.boardView.getViewTilePosition(megaTile.position.row, megaTile.position.column);
 
         for (const tile of collapseTiles) {
-            const tileView = this.tileViews.get(`${tile.position.row},${tile.position.column}`);
+            const tileView = this.tileViews.get(tile.id);
             if (!tileView) continue;
 
             const node = tileView.node;
@@ -93,7 +96,7 @@ export class AnimatorBoardView extends cc.Component {
 
         await Promise.all(animations);
 
-        const megaTileView = this.tileViews.get(`${superTileStartPosition.row},${superTileStartPosition.column}`);
+        const megaTileView = this.tileViews.get(megaTile.id);
         if (megaTileView) {
             const megaTileAnimation = new Promise<void>(resolve => {
                 cc.tween(megaTileView.node)
@@ -114,7 +117,8 @@ export class AnimatorBoardView extends cc.Component {
 
         dropMoves.forEach(tile => {
             if (tile.fromRow === verticalTileCount) {
-                const tileView = this.tileViews.get(`${tile.toRow},${tile.column}`);
+                const tileView = this.tileViews.get(tile.tile.id);
+                if (!tileView) return;
                 const node = tileView.node;
                 const tileNewViewPosition = this.boardView.getViewTilePosition(tile.toRow, tile.column);
                 animations.push(new Promise(resolve => {
@@ -134,7 +138,7 @@ export class AnimatorBoardView extends cc.Component {
         const animations: Promise<void>[] = [];
         collapseTiles.forEach(tile => {
             let i = 0;
-            const tileView = this.tileViews.get(`${tile.position.row},${tile.position.column}`);
+            const tileView = this.tileViews.get(tile.id);
             if (tileView) {
                 animations.push(new Promise(resolve => {
                     cc.tween(tileView.node)
@@ -153,6 +157,28 @@ export class AnimatorBoardView extends cc.Component {
         await Promise.all(animations);
     }
 
+    public async animateShuffleSpawn(): Promise<void> {
+        const animations: Promise<void>[] = [];
+
+        this.tileViews.forEach(tileView => {
+            const node = tileView.node;
+            if (!node || !cc.isValid(node)) return;
+
+            node.scale = 0;
+            node.active = true;
+
+            animations.push(new Promise(resolve => {
+                cc.tween(node)
+                    .to(this.animationShuffleSpawnDuration, { scale: 1.2 }, { easing: 'backOut' })
+                    .to(this.animationShuffleSpawnDuration * 0.5, { scale: 1.0 })
+                    .call(() => resolve())
+                    .start();
+            }));
+        });
+
+        await Promise.all(animations);
+    }
+
     public async animateFall(dropMoves: TileDropMove[], verticalTileCount: number) : Promise<void> {
         const animations: Promise<void>[] = [];
 
@@ -162,10 +188,8 @@ export class AnimatorBoardView extends cc.Component {
             if (dropMove.fromRow == verticalTileCount) continue;
 
             const tileViewNewPosition = this.boardView.getViewTilePosition(dropMove.toRow, dropMove.column);
-            const tileView = this.tileViews.get(`${dropMove.fromRow},${dropMove.column}`);
-            if (tileView === null) {
-                console.log("tileView is null");
-            }
+            const tileView = this.tileViews.get(dropMove.tile.id);
+            if (!tileView) continue;
 
             const node = tileView.node;
             if (node && cc.isValid(node)) {

@@ -3,27 +3,42 @@ import { Tile } from "./Tile";
 import { BoosterType } from "./BoosterType";
 import { ScoreCounter } from "./ScoreCounter";
 import { BoosterView } from "../view/BoosterView";
+import { InteractionPolicyService, InteractionPolicyState } from "../service/InteractionPolicyService";
+import { BombBoosterAction } from "./BombBoosterAction";
+import { BoosterActionRegistry } from "./BoosterActionRegistry";
+import { IBoosterAction } from "./IBoosterAction";
+import { TeleportBoosterAction } from "./TeleportBoosterAction";
 
 export class BoosterHandler {
     private board: Board;
     private activeBooster: BoosterType;
-    private firstSelectionTile: Tile | null;
-    private secondSelectionTile: Tile | null;
-    private scoreCounter: ScoreCounter;
     private boosterView: BoosterView = null;
-    private boosterBombCount: number;
-    private boosterTeleportCount: number;
+    private readonly actionRegistry: BoosterActionRegistry;
+    private readonly interactionPolicy: InteractionPolicyService;
+    private readonly getInteractionState: () => InteractionPolicyState;
     
-    constructor(board: Board, scoreCounter: ScoreCounter, boosterView: BoosterView, boosterTeleportCount: number, boosterBombCount: number) {
+    constructor(
+        board: Board,
+        scoreCounter: ScoreCounter,
+        boosterView: BoosterView,
+        boosterTeleportCount: number,
+        boosterBombCount: number,
+        interactionPolicy: InteractionPolicyService,
+        getInteractionState: () => InteractionPolicyState
+    ) {
         this.board = board;
         this.activeBooster = BoosterType.None;
-        this.scoreCounter = scoreCounter;
         this.boosterView = boosterView;
-        this.boosterBombCount = boosterBombCount;
-        this.boosterTeleportCount = boosterTeleportCount;
+        this.interactionPolicy = interactionPolicy;
+        this.getInteractionState = getInteractionState;
+
+        const teleportAction = new TeleportBoosterAction(this.board, boosterTeleportCount);
+        const bombAction = new BombBoosterAction(this.board, scoreCounter, boosterBombCount);
+        this.actionRegistry = new BoosterActionRegistry([teleportAction, bombAction]);
 
         this.subscribesToBoosterButtonsEvent();
-        this.boosterView.updateView(this.boosterTeleportCount, this.boosterBombCount);
+        this.updateBoosterCountsView();
+        this.syncBoosterButtonsAvailability();
     }
 
     public isSelectedBooster(): boolean {
@@ -31,10 +46,25 @@ export class BoosterHandler {
     }
 
     public selectBooster(boosterType: BoosterType) : void {
+        if (this.activeBooster === boosterType) {
+            this.offActive();
+            return;
+        }
+
+        const action = this.getAction(boosterType);
+        if (!action || action.getRemainingUses() <= 0) {
+            this.disableBoosterByType(boosterType);
+            return;
+        }
+
+        this.offActive();
         this.activeBooster = boosterType;
+        this.boosterView.setActiveBooster(boosterType);
     }
     
     public useActiveBoosterIn(tile: Tile) : void {
+        if (!this.interactionPolicy.canAcceptBoardInput(this.getInteractionState())) return;
+
         this.handleBooster(tile);
     }
 
@@ -56,96 +86,86 @@ export class BoosterHandler {
     }
     
     private handleBooster(tile: Tile) : void {
-        switch (this.activeBooster) {
-            case BoosterType.Teleport:
-                if (this.firstSelectionTile == null) {
-                    this.firstSelectionTile = tile;
-                } else {
-                    this.secondSelectionTile = tile;
-                    this.teleportTiles();
-                    this.boosterTeleportCount--;
-                    this.boosterView.updateView(this.boosterTeleportCount, this.boosterBombCount);
-                    this.offActive();
-                }
-                break;
-            case BoosterType.Bomb:
-                this.bombTile(tile);
-                this.boosterBombCount--;
-                this.boosterView.updateView(this.boosterTeleportCount, this.boosterBombCount);
-                this.offActive();
-                break;
-            default:
-                break;
+        const action = this.getAction(this.activeBooster);
+        if (!action || !action.canActivate(tile)) {
+            this.syncBoosterButtonsAvailability();
+            return;
         }
 
-        if (this.boosterTeleportCount <= 0) {
-            this.boosterView.disableTeleport();
+        const activateResult = action.activate(tile);
+
+        if (activateResult.shouldConsume) {
+            action.consume();
+            this.updateBoosterCountsView();
         }
 
-        if (this.boosterBombCount <= 0) {
-            this.boosterView.disableBomb();
+        this.syncBoosterButtonsAvailability();
+
+        if (!activateResult.shouldStayActive) {
+            this.offActive();
         }
     }
 
     private offActive() : void {
-        this.firstSelectionTile = null;
-        this.secondSelectionTile = null;
+        const action = this.getAction(this.activeBooster);
+        if (action) {
+            action.reset();
+        }
+
         this.activeBooster = BoosterType.None;
         this.boosterView.setActiveBooster(BoosterType.None);
     }
 
-    private bombTile(tile: Tile) : void {
-        const removeTiles: Tile[] = [];
-        const [centerRow, centerColumn] = [tile.position.row, tile.position.column];
-        const radius = this.board.config.superTileRadius;
-
-        for (let row = centerRow - radius; row <= centerRow + radius; row++) {
-            for (let column = centerColumn - radius; column <= centerColumn + radius; column++) {
-                if (
-                    row >= 0 && row < this.board.config.verticalTileCount &&
-                    column >= 0 && column < this.board.config.horizontalTileCount
-                ) {
-                    removeTiles.push(this.board.grid[row][column]);
-                }
-            }
-        }
-
-        this.board.setCollapseTiles(removeTiles);
-        this.board.removeTiles(removeTiles.map(m => m.position));
-
-        this.scoreCounter.updateScore(removeTiles);
-    }
-
-    private teleportTiles() : void {
-        const [rowFirstTitle, columnFirstTitle] = [this.firstSelectionTile.position.row, this.firstSelectionTile.position.column];
-        const [rowSecondTitle, columnSecondTitle] = [this.secondSelectionTile.position.row, this.secondSelectionTile.position.column];
-
-        const temp = this.board.grid[rowFirstTitle][columnFirstTitle];
-        this.board.grid[rowFirstTitle][columnFirstTitle] = this.board.grid[rowSecondTitle][columnSecondTitle];
-        this.board.grid[rowSecondTitle][columnSecondTitle] = temp;
-        
-        const positionTemp = this.board.grid[rowFirstTitle][columnFirstTitle].position;
-        this.board.grid[rowFirstTitle][columnFirstTitle].position = this.board.grid[rowSecondTitle][columnSecondTitle].position;
-        this.board.grid[rowSecondTitle][columnSecondTitle].position = positionTemp;
-
-        this.board.swapTile = [this.firstSelectionTile, this.secondSelectionTile];
-    }
-
     private onTapBoombButton() : void {
-        if (this.activeBooster === BoosterType.Bomb) {
-            this.offActive();
-        } else {
-            this.activeBooster = BoosterType.Bomb;
-            this.boosterView.setActiveBooster(BoosterType.Bomb);
-        }
+        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
+
+        this.selectBooster(BoosterType.Bomb);
     }
 
     private onTapTeleportButton() : void {
-        if (this.activeBooster === BoosterType.Teleport) {
-            this.offActive();
-        } else {
-            this.activeBooster = BoosterType.Teleport;
-            this.boosterView.setActiveBooster(BoosterType.Teleport);
+        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
+
+        this.selectBooster(BoosterType.Teleport);
+    }
+
+    private syncBoosterButtonsAvailability() : void {
+        const teleportAction = this.getAction(BoosterType.Teleport);
+        const bombAction = this.getAction(BoosterType.Bomb);
+
+        if (teleportAction && teleportAction.getRemainingUses() <= 0) {
+            this.boosterView.disableTeleport();
         }
+
+        if (bombAction && bombAction.getRemainingUses() <= 0) {
+            this.boosterView.disableBomb();
+        }
+    }
+
+    private updateBoosterCountsView() : void {
+        const teleportAction = this.getAction(BoosterType.Teleport);
+        const bombAction = this.getAction(BoosterType.Bomb);
+
+        const teleportCount = teleportAction ? teleportAction.getRemainingUses() : 0;
+        const bombCount = bombAction ? bombAction.getRemainingUses() : 0;
+        this.boosterView.updateView(teleportCount, bombCount);
+    }
+
+    private disableBoosterByType(boosterType: BoosterType): void {
+        if (boosterType === BoosterType.Bomb) {
+            this.boosterView.disableBomb();
+            return;
+        }
+
+        if (boosterType === BoosterType.Teleport) {
+            this.boosterView.disableTeleport();
+        }
+    }
+
+    private getAction(type: BoosterType): IBoosterAction | null {
+        if (type === BoosterType.None) {
+            return null;
+        }
+
+        return this.actionRegistry.get(type);
     }
 }

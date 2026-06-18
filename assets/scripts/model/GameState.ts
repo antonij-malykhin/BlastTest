@@ -8,9 +8,10 @@ export class GameState {
     private score: number;
     private movesLeft: number;
     private shuffleCount: number;
+    private forcedLose: boolean;
+    private isLevelLoseValue: boolean;
+    private isLevelWinValue: boolean;
     
-    public isLevelLose: boolean;
-    public isLevelWin: boolean;
     public gameEventEmitter = new LocalEventEmitter<GameEvents>();
 
     constructor(
@@ -24,9 +25,20 @@ export class GameState {
         this.winScore = winScore;
         this.score = score;
         this.movesLeft = movesLeft;
-        this.isLevelLose = isGameOver;
-        this.isLevelWin = isGameWon;
+        this.isLevelLoseValue = isGameOver;
+        this.isLevelWinValue = isGameWon;
         this.shuffleCount = shuffleCount;
+        this.forcedLose = isGameOver;
+
+        this.resolveEndState();
+    }
+
+    public get isLevelLose(): boolean {
+        return this.isLevelLoseValue;
+    }
+
+    public get isLevelWin(): boolean {
+        return this.isLevelWinValue;
     }
     
     public static initial(config: GameConfig): GameState {
@@ -36,24 +48,46 @@ export class GameState {
     public updateScore(score: number): void {
         this.score = score;
         this.gameEventEmitter.emit(ScoreChangedEvent, { score: this.score });
-        if (this.score >= this.winScore) {
-            this.isLevelWin = true;
-        }
+        this.resolveEndState();
     }
 
     public updateMovesLeft(movesLeft: number): void {
         this.movesLeft = movesLeft;
         this.gameEventEmitter.emit(MovesChangedEvent, { moves: this.movesLeft });
-        if (this.movesLeft <= 0) {
-            this.isLevelLose = true;
-        }
+        this.resolveEndState();
+    }
+
+    public markLevelLost(): void {
+        this.forcedLose = true;
+        this.resolveEndState();
+    }
+
+    public incrementShuffleCount(): void {
+        this.shuffleCount++;
+    }
+
+    public canShuffle(maxAutoShuffles: number): boolean {
+        return this.shuffleCount < maxAutoShuffles;
     }
 
     public reset(config: GameConfig) : void {
         this.score = 0;
         this.movesLeft = config.maxMoves;
-        this.isLevelLose = false;
-        this.isLevelWin = false;
         this.shuffleCount = 0;
+        this.forcedLose = false;
+
+        this.resolveEndState();
+    }
+
+    private resolveEndState(): void {
+        const isTargetReached = this.score >= this.winScore;
+        if (isTargetReached) {
+            this.isLevelWinValue = true;
+            this.isLevelLoseValue = false;
+            return;
+        }
+
+        this.isLevelWinValue = false;
+        this.isLevelLoseValue = this.movesLeft <= 0 || this.forcedLose;
     }
 }

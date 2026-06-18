@@ -1,4 +1,4 @@
-import { Position, Tile, TileType } from "../model/Tile";
+import { Position, Tile } from "../model/Tile";
 import { TileSpriteDatabase } from "../service/TileSpriteDataBase";
 
 const { ccclass, property } = cc._decorator;
@@ -26,35 +26,29 @@ export class TileView extends cc.Component {
     @property(cc.Integer)
     private animationTileAppearScaleUpValue = 1;
 
-    private _onTileClick: (pos: Position) => void = null;
-
+    public tileId: string = null;
     public position: Position = null;
 
-    protected onDisable(): void {
-        this.node.off(cc.Node.EventType.TOUCH_END, this.onClick, this);
-    }
-
-    protected onEnable(): void {
-        this.node.on(cc.Node.EventType.TOUCH_END, this.onClick, this);
-    }
-
-    public init(tile: Tile, position: Position, scale: cc.Vec2, onClick: (pos: Position) => void): void {
+    public init(tile: Tile, position: Position, scale: cc.Vec2): void {
+        this.tileId = tile.id;
         this.position = position;
         this.node.setPosition(cc.v3(position.x, position.y));
         this.node.width = scale.x;
         this.node.height = scale.y;
-        this._onTileClick = onClick;
         this.updateView(tile);
     }
 
     public updateView(tile: Tile | null): void {
         this.label.string = "";
         if (!tile) {
+            this.tileId = null;
+            this.position = null;
             this.node.active = false;
             return;
         }
 
         this.node.active = true;
+        this.tileId = tile.id;
         this.position = tile.position;
         this.sprite.spriteFrame = TileSpriteDatabase.instance.getSpriteForType(tile.type);
         this.sprite.sizeMode = TileSpriteDatabase.instance.getSizeModeForType(tile.type);
@@ -84,9 +78,4 @@ export class TileView extends cc.Component {
         });
     }
 
-    private onClick(): void {
-        if (this._onTileClick) {
-            this._onTileClick(this.position);
-        }
-    }
 }

@@ -1,6 +1,8 @@
 import { Position, Tile, TileType } from "../model/Tile";
 
 export class TileFactory {
+    private nextTileId = 0;
+
     public createRandomTile(position: Position): Tile {
         const rand = Math.random();
         let type: TileType;
@@ -11,11 +13,11 @@ export class TileFactory {
             type = this.getRandomSuperType();
         }
 
-        return new Tile(type, position);
+        return new Tile(this.createTileId(), type, position);
     }
 
     public createNormalTile(position: Position): Tile {
-        return new Tile(this.getRandomNormalType(), position);
+        return new Tile(this.createTileId(), this.getRandomNormalType(), position);
     }
 
     public createTileMegaTile(position: Position): Tile {
@@ -23,7 +25,12 @@ export class TileFactory {
 
         type = this.getRandomSuperType();
 
-        return new Tile(type, position);
+        return new Tile(this.createTileId(), type, position);
+    }
+
+    private createTileId(): string {
+        this.nextTileId++;
+        return `tile-${this.nextTileId}`;
     }
 
     private getRandomNormalType(): TileType {

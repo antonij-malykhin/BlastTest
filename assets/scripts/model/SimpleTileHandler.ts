@@ -20,7 +20,7 @@ export class SimpleTileHandler {
     }
     
     public handleSimpleTile(tile: Tile): void {
-        let matches = this.tileMatcher.findMatches(tile);
+        let matches = this.tileMatcher.findGroupFrom(tile);
         if (matches.length < 2) return;
 
         if (matches.length >= this.superTileThreshold) {

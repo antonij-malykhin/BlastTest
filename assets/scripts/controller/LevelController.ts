@@ -1,4 +1,4 @@
-import { GameConfig } from "../config/GameConfig";
+﻿import { GameConfig } from "../config/GameConfig";
 import LocalEventEmitter from "../EventEmitter";
 import { TileFactory } from "../factory/TileFactory";
 import { TileViewFactory } from "../factory/TileViewFactory";
@@ -13,6 +13,10 @@ import { SimpleTileHandler } from "../model/SimpleTileHandler";
 import { SuperTileHandler } from "../model/SuperTileHandler";
 import { Position } from "../model/Tile";
 import { TileMatcher } from "../model/TileMatcher";
+import { AvailableMovesDetectionService } from "../service/AvailableMovesDetectionService";
+import { InteractionPolicyService } from "../service/InteractionPolicyService";
+import { ShuffleService } from "../service/ShuffleService";
+import { BoardTileSelectedCommand, BoardView } from "../view/BoardView";
 import { BoosterView } from "../view/BoosterView";
 import { LevelView } from "../view/LevelView";
 
@@ -24,8 +28,12 @@ export class LevelController {
     private readonly superTileHandler: SuperTileHandler;
     private readonly boosterHandler: BoosterHandler;
     private readonly simpleTileHandler: SimpleTileHandler;
+    private readonly availableMovesDetectionService: AvailableMovesDetectionService;
+    private readonly shuffleService: ShuffleService;
     private readonly state: GameState;
+    private readonly config: GameConfig;
     private readonly levelView: LevelView;
+    private readonly interactionPolicy: InteractionPolicyService;
 
     private updateInProgress: boolean;
 
@@ -36,6 +44,8 @@ export class LevelController {
         state: GameState
     ) {
         this.state = state;
+        this.config = config;
+        this.interactionPolicy = new InteractionPolicyService();
 
         const scoreCounter = new ScoreCounter(config.tileScore, this.state);
         const moveCounter = new MoveCounter(config.maxMoves, this.state);
@@ -43,9 +53,19 @@ export class LevelController {
 
         this.board = new Board(config, tileFactory);
         this.tileMatcher = new TileMatcher(config, this.board);
+        this.availableMovesDetectionService = new AvailableMovesDetectionService(this.tileMatcher, config.minGroupSize);
+        this.shuffleService = new ShuffleService(this.board, this.availableMovesDetectionService);
         this.simpleTileHandler = new SimpleTileHandler(this.board, scoreCounter, moveCounter, this.tileMatcher, config.superTileThreshold);
         this.superTileHandler = new SuperTileHandler(this.board, scoreCounter, moveCounter);
-        this.boosterHandler = new BoosterHandler(this.board, scoreCounter, levelView.boosterView, config.boosterTeleportCount, config.boosterBombCount);
+        this.boosterHandler = new BoosterHandler(
+            this.board,
+            scoreCounter,
+            levelView.boosterView,
+            config.boosterTeleportCount,
+            config.boosterBombCount,
+            this.interactionPolicy,
+            () => this.getInteractionState()
+        );
 
         this.levelView = levelView;
 
@@ -56,9 +76,10 @@ export class LevelController {
             config.tileWidth,
             config.tileHeight,
             this.board,
-            this.handleTileClick.bind(this)
+            () => this.interactionPolicy.canAcceptBoardInput(this.getInteractionState())
         );
 
+        this.levelView.boardView.node.on(BoardView.TileSelectedEventName, this.handleTileSelected, this);
         this.levelView.node.on(BoosterView.BombTapEventName, this.handleBoombButton, this);
         this.levelView.node.on(BoosterView.TeleportTapEventName, this.handleTeleportButton, this);
 
@@ -70,6 +91,7 @@ export class LevelController {
         this.state.gameEventEmitter.off(ScoreChangedEvent, this.handleScoreChanged);
         this.state.gameEventEmitter.off(MovesChangedEvent, this.handleMovesChanged);
 
+        this.levelView.boardView.node.off(BoardView.TileSelectedEventName, this.handleTileSelected, this);
         this.levelView.node.off(BoosterView.BombTapEventName, this.handleBoombButton, this);
         this.levelView.node.off(BoosterView.TeleportTapEventName, this.handleTeleportButton, this);
         this.levelView.destroy();
@@ -80,11 +102,10 @@ export class LevelController {
     }
 
     private async selectTile(position: Position): Promise<void> {
-        if (this.state.isLevelLose || this.state.isLevelWin) return;
+        if (!this.interactionPolicy.canAcceptBoardInput(this.getInteractionState())) return;
 
         const tile = this.board.getTileAt(position);
         if (!tile) return;
-        if(this.updateInProgress) return;
 
         if (this.boosterHandler.isSelectedBooster()) {
             this.boosterHandler.useActiveBoosterIn(tile);
@@ -95,13 +116,19 @@ export class LevelController {
         }
 
         this.updateInProgress = true;
-        this.boosterHandler.blockBoosters();
-        await this.levelView.boardView.updateView(this.board, tile);
-        this.updateInProgress = false;
-        this.boosterHandler.unblockBoosters();
 
-        if (!this.boosterHandler.isSelectedBooster()) {
-            this.board.clearDropMoves();
+        try {
+            await this.levelView.boardView.updateView(this.board, tile);
+
+            if (!this.boosterHandler.isSelectedBooster()) {
+                this.board.clearDropMoves();
+
+                if (!this.state.isLevelWin && !this.state.isLevelLose) {
+                    await this.performAutoShuffleIfNeeded();
+                }
+            }
+        } finally {
+            this.updateInProgress = false;
         }
 
         if (this.state.isLevelLose) {
@@ -110,12 +137,31 @@ export class LevelController {
             this.gameEventEmitter.emit(LevelWinEvent, null);
         }
     }
+
+    private async performAutoShuffleIfNeeded(): Promise<void> {
+        while (!this.shuffleService.hasAvailableMoves()) {
+            if (!this.state.canShuffle(this.config.maxAutoShuffles)) {
+                this.state.markLevelLost();
+                return;
+            }
+
+            this.state.incrementShuffleCount();
+            this.shuffleService.shuffleBoard();
+
+            await this.levelView.boardView.updateViewAfterShuffle(this.board);
+            this.board.clearDropMoves();
+        }
+    }
     
     private handleTeleportButton() : void {
+        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
+
         this.boosterHandler.selectBooster(BoosterType.Teleport);
     }
 
     private handleBoombButton() : void {
+        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
+
         this.boosterHandler.selectBooster(BoosterType.Bomb);
     }
 
@@ -127,7 +173,21 @@ export class LevelController {
         this.levelView.updateScore(event.score);
     }
 
-    private async handleTileClick(position: Position): Promise<void> {
+    private async handleTileSelected(command: BoardTileSelectedCommand): Promise<void> {
+        if (!command) return;
+
+        const tile = this.board.getTileById(command.tileId) || this.board.getTileAt(this.board.getPositionBy(command.row, command.column));
+        if (!tile) return;
+
+        const position = tile.position;
         await this.selectTile(position);
+    }
+
+    private getInteractionState() {
+        return {
+            isAnimationInProgress: this.updateInProgress,
+            isLevelFinished: this.state.isLevelLose || this.state.isLevelWin,
+            isBoosterModeActive: this.boosterHandler ? this.boosterHandler.isSelectedBooster() : false,
+        };
     }
 }

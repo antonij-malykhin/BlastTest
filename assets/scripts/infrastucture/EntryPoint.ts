@@ -33,6 +33,7 @@ export class EntryPoint extends cc.Component {
         this.config = {
             boosterTeleportCount: this.gameConfigNode.boosterTeleportCount,
             boosterBombCount: this.gameConfigNode.boosterBombCount,
+            minGroupSize: this.gameConfigNode.minGroupSize,
             tileScore: this.gameConfigNode.tileScore,
             tileWidth: this.gameConfigNode.tileWidth,
             tileHeight: this.gameConfigNode.tileHeight,
@@ -43,6 +44,7 @@ export class EntryPoint extends cc.Component {
             superTileThreshold: this.gameConfigNode.superTileThreshold,
             bombRadius: this.gameConfigNode.bombRadius,
             superTileRadius: this.gameConfigNode.superTileRadius,
+                    maxAutoShuffles: this.gameConfigNode.maxAutoShuffles,
         };
     }
 

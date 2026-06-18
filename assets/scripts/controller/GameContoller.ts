@@ -1,7 +1,7 @@
 import { GameConfig } from "../config/GameConfig";
 import { LevelViewFactory } from "../factory/LevelViewFactory";
 import { TileViewFactory } from "../factory/TileViewFactory";
-import { LevelLoseEvent, LevelWinEvent, MovesChangedEvent, RestartEventName, ScoreChangedEvent } from "../GameEvents";
+import { LevelLoseEvent, LevelWinEvent, RestartEventName } from "../GameEvents";
 import { GameState } from "../model/GameState";
 import { GameView } from "../view/GameView";
 import { LevelController } from "./LevelController";
@@ -38,8 +38,8 @@ export class GameController {
         this.gameView.hideWin();
 
         if (this.level) {
-            this.level.gameEventEmitter.off(LevelWinEvent, this.handleWinLevel.bind(this));
-            this.level.gameEventEmitter.off(LevelLoseEvent, this.handleLoseLevel.bind(this));
+            this.level.gameEventEmitter.off(LevelWinEvent, this.handleWinLevel);
+            this.level.gameEventEmitter.off(LevelLoseEvent, this.handleLoseLevel);
             this.disposeLevel();
         }
 
@@ -47,8 +47,8 @@ export class GameController {
         levelView.init(this.config.targetScore, this.config.maxMoves);
         
         this.level = new LevelController(levelView, this.config, this.tileViewFactory, this.state);
-        this.level.gameEventEmitter.on(LevelWinEvent, this.handleWinLevel.bind(this));
-        this.level.gameEventEmitter.on(LevelLoseEvent, this.handleLoseLevel.bind(this));
+        this.level.gameEventEmitter.on(LevelWinEvent, this.handleWinLevel);
+        this.level.gameEventEmitter.on(LevelLoseEvent, this.handleLoseLevel);
     }
     
     private disposeLevel() : void {
