@@ -20,7 +20,7 @@ export class TileFactory {
         return new Tile(this.createTileId(), this.getRandomNormalType(), position);
     }
 
-    public createTileMegaTile(position: Position): Tile {
+    public createSuperTile(position: Position): Tile {
         let type: TileType;
 
         type = this.getRandomSuperType();

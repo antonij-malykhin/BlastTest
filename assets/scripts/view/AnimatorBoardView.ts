@@ -7,7 +7,6 @@ const {ccclass, property} = cc._decorator;
 
 @ccclass
 export class AnimatorBoardView extends cc.Component {
-    
     @property(cc.Integer)
     private animationTileFallDuration = 0.25;
     
@@ -18,19 +17,19 @@ export class AnimatorBoardView extends cc.Component {
     private animationSwapDuration = 0.2;
 
     @property(cc.Integer)
-    private animationCollapseToMegaTileDuration = 0.3;
+    private animationCollapseToSuperTileDuration = 0.3;
 
     @property(cc.Integer)
-    private animationCollapseToMegaTileScale = 0.3;
+    private animationCollapseToSuperTileScale = 0.3;
 
     @property(cc.Integer)
-    private animationMegaTileScaleUpDuration = 0.2;
+    private animationSuperTileScaleUpDuration = 0.2;
 
     @property(cc.Integer)
-    private animationMegaTileScaleUpValue = 1.3;
+    private animationSuperTileScaleUpValue = 1.3;
 
     @property(cc.Integer)
-    private animationMegaTileCommonScaleValue = 1.0;
+    private animationSuperTileCommonScaleValue = 1.0;
 
     @property(cc.Integer)
     private animationDropNewDelayBetweenEach = 0.25;
@@ -55,12 +54,23 @@ export class AnimatorBoardView extends cc.Component {
         this.boardView = boardView;
     }
 
-    public async animateSwap(tile1: Tile, tile2: Tile) :  Promise<void> {
-        if (!tile1 || !tile2) return;
+    public animateHighlight(tileView: TileView) {
+        cc.tween(tileView.node)
+            .to(0.15, { scale: 1.2 }, { easing: 'backOut' })
+            .start();
+    }
 
-        const node1 = this.tileViews.get(tile1.id)?.node;
-        const node2 = this.tileViews.get(tile2.id)?.node;
+    public animateUnhighlight(tileView: TileView) {
+        cc.tween(tileView.node)
+            .to(0.15, { scale: 1.0 }, { easing: 'backIn' })
+            .start();
+    }
 
+    public async animateSwap(firstTileId: string, secondTileId: string) :  Promise<void> {
+        if (!firstTileId || !secondTileId) return;
+
+        const node1 = this.tileViews.get(firstTileId)?.node;
+        const node2 = this.tileViews.get(secondTileId)?.node;
         if (!node1 || !node2) return;
 
         const pos1 = node1.position.clone();
@@ -72,10 +82,21 @@ export class AnimatorBoardView extends cc.Component {
         ]);
     }
 
-    public async animateCollapsesToMegaTile(collapseTiles: Tile[], megaTile: Tile) : Promise<void> {
+    public async animateCollapsesToSuperTile(collapseTiles: Tile[], dropMoves: TileDropMove[], megaTile: Tile) : Promise<void> {
         const animations: Promise<void>[] = [];
 
-        const centerPos = this.boardView.getViewTilePosition(megaTile.position.row, megaTile.position.column);
+        let superTilePositionBeforeCollapse: Position;
+
+        for (const dropMove of dropMoves) {
+            if (dropMove.tile.id === megaTile.id && dropMove.fromRow !== dropMove.toRow) {
+                superTilePositionBeforeCollapse = this.boardView.getViewTilePosition(dropMove.fromRow, dropMove.column);
+                break;
+            }
+        }
+
+        if (!superTilePositionBeforeCollapse) {
+            superTilePositionBeforeCollapse = this.boardView.getViewTilePosition(megaTile.position.row, megaTile.position.column);
+        }
 
         for (const tile of collapseTiles) {
             const tileView = this.tileViews.get(tile.id);
@@ -85,7 +106,7 @@ export class AnimatorBoardView extends cc.Component {
 
             animations.push(new Promise(resolve => {
                 cc.tween(node)
-                    .to(this.animationCollapseToMegaTileDuration, { position: new cc.Vec3(centerPos.x, centerPos.y), scale: this.animationCollapseToMegaTileScale }, { easing: 'backIn' })
+                    .to(this.animationCollapseToSuperTileDuration, { position: new cc.Vec3(superTilePositionBeforeCollapse.x, superTilePositionBeforeCollapse.y), scale: this.animationCollapseToSuperTileScale }, { easing: 'backIn' })
                     .call(() => {
                         tileView.node.active = false;
                         resolve();
@@ -96,19 +117,19 @@ export class AnimatorBoardView extends cc.Component {
 
         await Promise.all(animations);
 
-        const megaTileView = this.tileViews.get(megaTile.id);
-        if (megaTileView) {
-            const megaTileAnimation = new Promise<void>(resolve => {
-                cc.tween(megaTileView.node)
-                    .to(this.animationMegaTileScaleUpDuration, { scale: this.animationMegaTileScaleUpValue }, { easing: 'sineOut' })
-                    .to(this.animationMegaTileScaleUpDuration, { scale: this.animationMegaTileCommonScaleValue }, { easing: 'backIn' })
+        const superTileView = this.tileViews.get(megaTile.id);
+        if (superTileView) {
+            const superTileAnimation = new Promise<void>(resolve => {
+                cc.tween(superTileView.node)
+                    .to(this.animationSuperTileScaleUpDuration, { scale: this.animationSuperTileScaleUpValue }, { easing: 'sineOut' })
+                    .to(this.animationSuperTileScaleUpDuration, { scale: this.animationSuperTileCommonScaleValue }, { easing: 'backIn' })
                     .call(() => {
                         resolve();
                     })
                     .start();
             });
 
-            await megaTileAnimation;
+            await superTileAnimation;
         }
     }
 

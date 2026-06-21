@@ -8,6 +8,7 @@ import { BombBoosterAction } from "./BombBoosterAction";
 import { BoosterActionRegistry } from "./BoosterActionRegistry";
 import { IBoosterAction } from "./IBoosterAction";
 import { TeleportBoosterAction } from "./TeleportBoosterAction";
+import { BoardView } from "../view/BoardView";
 
 export class BoosterHandler {
     private board: Board;
@@ -19,6 +20,7 @@ export class BoosterHandler {
     
     constructor(
         board: Board,
+        boardView: BoardView,
         scoreCounter: ScoreCounter,
         boosterView: BoosterView,
         boosterTeleportCount: number,
@@ -32,7 +34,7 @@ export class BoosterHandler {
         this.interactionPolicy = interactionPolicy;
         this.getInteractionState = getInteractionState;
 
-        const teleportAction = new TeleportBoosterAction(this.board, boosterTeleportCount);
+        const teleportAction = new TeleportBoosterAction(this.board, boardView, boosterTeleportCount);
         const bombAction = new BombBoosterAction(this.board, scoreCounter, boosterBombCount);
         this.actionRegistry = new BoosterActionRegistry([teleportAction, bombAction]);
 

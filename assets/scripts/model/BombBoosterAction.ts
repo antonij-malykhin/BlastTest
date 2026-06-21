@@ -39,8 +39,8 @@ export class BombBoosterAction implements IBoosterAction {
             }
         }
 
-        this.board.setCollapseTiles(removeTiles);
-        this.board.removeTiles(removeTiles.map(m => m.position));
+        this.board.prepareTilesForMoveDown(removeTiles);
+        this.board.removeTiles(removeTiles);
         this.scoreCounter.updateScore(removeTiles);
 
         return {

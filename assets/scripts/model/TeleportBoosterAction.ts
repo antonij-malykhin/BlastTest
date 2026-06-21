@@ -1,4 +1,5 @@
-﻿import { Board } from "./Board";
+﻿import { BoardView } from "../view/BoardView";
+import { Board } from "./Board";
 import { BoosterType } from "./BoosterType";
 import { BoosterActivateResult, IBoosterAction } from "./IBoosterAction";
 import { Tile } from "./Tile";
@@ -11,6 +12,7 @@ export class TeleportBoosterAction implements IBoosterAction {
 
     constructor(
         private readonly board: Board,
+        private readonly boardView: BoardView,
         initialUses: number,
     ) {
         this.remainingUses = Math.max(0, initialUses);
@@ -27,6 +29,7 @@ export class TeleportBoosterAction implements IBoosterAction {
 
         if (this.firstSelectionTile == null) {
             this.firstSelectionTile = tile;
+            this.boardView.highlightTile(tile.id);
             return {
                 shouldConsume: false,
                 shouldStayActive: true,
@@ -40,8 +43,8 @@ export class TeleportBoosterAction implements IBoosterAction {
             };
         }
 
+        this.boardView.highlightTile(tile.id);
         this.swapTiles(this.firstSelectionTile, tile);
-        this.board.swapTile = [this.firstSelectionTile, tile];
         this.firstSelectionTile = null;
 
         return {

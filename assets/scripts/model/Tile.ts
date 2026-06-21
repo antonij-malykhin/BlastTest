@@ -23,7 +23,8 @@ export class Tile {
     public readonly id: string;
     public readonly type: TileType;
     public position: Position;
-
+    public superTileActivated: boolean;
+    
     constructor(id: string, type: TileType, position: Position) {
         this.id = id;
         this.type = type;

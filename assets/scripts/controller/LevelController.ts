@@ -16,7 +16,7 @@ import { TileMatcher } from "../model/TileMatcher";
 import { AvailableMovesDetectionService } from "../service/AvailableMovesDetectionService";
 import { InteractionPolicyService } from "../service/InteractionPolicyService";
 import { ShuffleService } from "../service/ShuffleService";
-import { BoardTileSelectedCommand, BoardView } from "../view/BoardView";
+import { BoardTileSelectedCommand, BoardUpdateViewModel, BoardView } from "../view/BoardView";
 import { BoosterView } from "../view/BoosterView";
 import { LevelView } from "../view/LevelView";
 
@@ -54,21 +54,10 @@ export class LevelController {
         this.board = new Board(config, tileFactory);
         this.tileMatcher = new TileMatcher(config, this.board);
         this.availableMovesDetectionService = new AvailableMovesDetectionService(this.tileMatcher, config.minGroupSize);
-        this.shuffleService = new ShuffleService(this.board, this.availableMovesDetectionService);
-        this.simpleTileHandler = new SimpleTileHandler(this.board, scoreCounter, moveCounter, this.tileMatcher, config.superTileThreshold);
-        this.superTileHandler = new SuperTileHandler(this.board, scoreCounter, moveCounter);
-        this.boosterHandler = new BoosterHandler(
-            this.board,
-            scoreCounter,
-            levelView.boosterView,
-            config.boosterTeleportCount,
-            config.boosterBombCount,
-            this.interactionPolicy,
-            () => this.getInteractionState()
-        );
 
+        
         this.levelView = levelView;
-
+        
         this.levelView.boardView.initialize(
             tileViewFactory,
             config.horizontalTileCount,
@@ -78,10 +67,25 @@ export class LevelController {
             this.board,
             () => this.interactionPolicy.canAcceptBoardInput(this.getInteractionState())
         );
-
+        
         this.levelView.boardView.node.on(BoardView.TileSelectedEventName, this.handleTileSelected, this);
         this.levelView.node.on(BoosterView.BombTapEventName, this.handleBoombButton, this);
         this.levelView.node.on(BoosterView.TeleportTapEventName, this.handleTeleportButton, this);
+        
+        this.shuffleService = new ShuffleService(this.board, this.availableMovesDetectionService);
+        this.simpleTileHandler = new SimpleTileHandler(this.board, scoreCounter, moveCounter, this.tileMatcher, config.superTileThreshold);
+        this.superTileHandler = new SuperTileHandler(this.board, scoreCounter, moveCounter);
+        this.boosterHandler = new BoosterHandler(
+            this.board,
+            this.levelView.boardView,
+            scoreCounter,
+            levelView.boosterView,
+            config.boosterTeleportCount,
+            config.boosterBombCount,
+            this.interactionPolicy,
+            () => this.getInteractionState()
+        );
+
 
         this.state.gameEventEmitter.on(ScoreChangedEvent, this.handleScoreChanged);
         this.state.gameEventEmitter.on(MovesChangedEvent, this.handleMovesChanged);
@@ -118,7 +122,8 @@ export class LevelController {
         this.updateInProgress = true;
 
         try {
-            await this.levelView.boardView.updateView(this.board, tile);
+            const boardUpdateViewModel = this.createBoardUpdateViewModel();
+            await this.levelView.boardView.updateView(boardUpdateViewModel);
 
             if (!this.boosterHandler.isSelectedBooster()) {
                 this.board.clearDropMoves();
@@ -181,6 +186,24 @@ export class LevelController {
 
         const position = tile.position;
         await this.selectTile(position);
+    }
+
+    private createBoardUpdateViewModel(): BoardUpdateViewModel {
+        const newTiles = this.board.dropMoves
+            .filter(move => move.fromRow === this.config.verticalTileCount)
+            .map(move => move.tile);
+
+        const firstSwapTileViewModel = this.levelView.boardView.createTileViewModel(this.board.swapTile[0]);
+        const secondSwapTileViewModel = this.levelView.boardView.createTileViewModel(this.board.swapTile[1]);
+
+        return {
+            swapTileModels: [firstSwapTileViewModel, secondSwapTileViewModel],
+            collapseTiles: this.board.tilesForMoveDown,
+            dropMoves: this.board.dropMoves,
+            createdSuperTile: this.board.createdSuperTile,
+            newTiles,
+            verticalTileCount: this.config.verticalTileCount,
+        };
     }
 
     private getInteractionState() {

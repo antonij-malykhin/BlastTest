@@ -24,12 +24,12 @@ export class SimpleTileHandler {
         if (matches.length < 2) return;
 
         if (matches.length >= this.superTileThreshold) {
-            this.board.createMegaTile(tile.position);
+            this.board.createSuperTile(tile.position);
             matches = matches.filter(match => match !== tile);
         }
 
-        this.board.setCollapseTiles(matches);
-        this.board.removeTiles(matches.map(m => m.position));
+        this.board.prepareTilesForMoveDown(matches);
+        this.board.removeTiles(matches);
         
         this.scoreCounter.updateScore(matches);
         this.moveCounter.updateMovesLeft();

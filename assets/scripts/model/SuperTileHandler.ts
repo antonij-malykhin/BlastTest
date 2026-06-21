@@ -27,20 +27,38 @@ export class SuperTileHandler {
     }
 
     public handleSuperTile(tile: Tile) : void {
+        let effectedTiles = this.getEffectedTiles(tile);
+        const uniqueEffectedTiles = new Set<Tile>(effectedTiles);
+        for (const effectedTile of effectedTiles) {
+            if (effectedTile.isSuperTile() && !effectedTile.superTileActivated && effectedTile !== tile) {
+                const additionalEffectedTiles = this.getEffectedTiles(effectedTile);
+                for (const additionalTile of additionalEffectedTiles) {
+                    uniqueEffectedTiles.add(additionalTile);
+                }
+            }
+        }
+
+        effectedTiles = Array.from(uniqueEffectedTiles);
+        
+        this.board.prepareTilesForMoveDown(effectedTiles);
+        this.board.removeTiles(effectedTiles);
+
+        this.scoreCounter.updateScore(effectedTiles);
+        this.moveCounter.updateMovesLeft();
+    }
+
+    private getEffectedTiles(tile: Tile) {
+        if (tile.isSuperTile() && tile.superTileActivated) {
+            return [];
+        }
+
         const effect = this.effectRegistry.get(tile.type);
         if (!effect) {
-            return;
+            return [];
         }
 
         const removeTiles = effect.apply(this.board, tile);
-        if (removeTiles.length === 0) {
-            return;
-        }
-
-        this.board.setCollapseTiles(removeTiles);
-        this.board.removeTiles(removeTiles.map(m => m.position));
-
-        this.scoreCounter.updateScore(removeTiles);
-        this.moveCounter.updateMovesLeft();
+        tile.superTileActivated = true;
+        return removeTiles;
     }
 }

@@ -12,11 +12,11 @@ export interface TileDropMove {
 export class Board {
     public readonly config: GameConfig;
     
-    public collapseTiles: Tile[];
+    public tilesForMoveDown: Tile[];
     public dropMoves: TileDropMove[];
     public swapTile: [Tile, Tile];
-    public createdMegaTile: Tile;
-    public createdMegaTileStartPosition: Position;
+    public createdSuperTile: Tile;
+    public createdSuperTileStartPosition: Position;
 
     private tileFactory: TileFactory;
     private grid: Tile[][];
@@ -39,8 +39,8 @@ export class Board {
         this.clearDropMoves();
     }
     
-    public setCollapseTiles(matches: Tile[]) : void {
-        this.collapseTiles = matches;
+    public prepareTilesForMoveDown(tiles: Tile[]) : void {
+        this.tilesForMoveDown = tiles;
     }
 
     public addDropMoves(dropMoves: TileDropMove[]) : void {
@@ -48,11 +48,11 @@ export class Board {
     }
 
     public clearDropMoves() : void {
-        this.collapseTiles = [];
+        this.tilesForMoveDown = [];
         this.dropMoves = [];
         this.swapTile = [null, null];
-        this.createdMegaTileStartPosition = null;
-        this.createdMegaTile = null;
+        this.createdSuperTileStartPosition = null;
+        this.createdSuperTile = null;
     }
 
     public shuffleBoard(): void {
@@ -68,7 +68,7 @@ export class Board {
             }
         }
 
-        this.collapseTiles = [...normalTiles];
+        this.tilesForMoveDown = [...normalTiles];
 
         for (const tile of normalTiles) {
             const pos = tile.position;
@@ -76,10 +76,18 @@ export class Board {
         }
     }
     
-    public createMegaTile(position: Position) : void {
-        this.createdMegaTileStartPosition = position;
-        this.grid[position.row][position.column] = this.tileFactory.createTileMegaTile(position);
-        this.createdMegaTile = this.grid[position.row][position.column];
+    public createSuperTile(position: Position) : void {
+        this.createdSuperTileStartPosition = position;
+        const currentTile = this.grid[position.row][position.column];
+        if (!currentTile) {
+            this.grid[position.row][position.column] = this.tileFactory.createSuperTile(position);
+            this.createdSuperTile = this.grid[position.row][position.column];
+            return;
+        }
+
+        const generatedSuperTile = this.tileFactory.createSuperTile(position);
+        this.grid[position.row][position.column] = new Tile(currentTile.id, generatedSuperTile.type, position);
+        this.createdSuperTile = this.grid[position.row][position.column];
     }
 
     public getTileAt(position: Position): Tile | null {
@@ -121,14 +129,14 @@ export class Board {
         return null;
     }
 
-    public removeTiles(positions: Position[]): void {
-        positions.forEach(pos => {
-            if (this.isPositionValid(pos)) {
-                this.grid[pos.row][pos.column] = null;
+    public removeTiles(tiles: Tile[]): void {
+        tiles.forEach(tile => {
+            if (this.isPositionValid(tile.position)) {
+                this.grid[tile.position.row][tile.position.column] = null;
             }
         });
 
-        this.collapseColumns();
+        this.moveDownColumns();
         this.fillEmptySpaces();
     }
 
@@ -167,34 +175,34 @@ export class Board {
                position.column >= 0 && position.column < this.config.horizontalTileCount;
     }
 
-    private collapseColumns(): void {
+    private moveDownColumns(): void {
         for (let collumn = 0; collumn < this.config.horizontalTileCount; collumn++) {
-        let emptyY = this.config.verticalTileCount;
-            // Идем снизу вверх
-            for (let row = this.config.verticalTileCount - 1; row >= 0; row--) {
-                // Находим первую пустую ячейку
-                if (this.grid[row][collumn] === null && emptyY === this.config.verticalTileCount) {
-                    emptyY = row;
-                }
-                // Если нашли тайл над пустой ячейкой
-                else if (this.grid[row][collumn] !== null && emptyY !== this.config.verticalTileCount) {
-                    // Перемещаем тайл вниз
-                    this.grid[emptyY][collumn] = this.grid[row][collumn];
-                    this.grid[emptyY][collumn].position = new Position(0, 0, emptyY, collumn);
-                    this.grid[row][collumn] = null;
+            let emptyY = this.config.verticalTileCount;
+                // Идем снизу вверх
+                for (let row = this.config.verticalTileCount - 1; row >= 0; row--) {
+                    // Находим первую пустую ячейку
+                    if (this.grid[row][collumn] === null && emptyY === this.config.verticalTileCount) {
+                        emptyY = row;
+                    }
+                    // Если нашли тайл над пустой ячейкой
+                    else if (this.grid[row][collumn] !== null && emptyY !== this.config.verticalTileCount) {
+                        // Перемещаем тайл вниз
+                        this.grid[emptyY][collumn] = this.grid[row][collumn];
+                        this.grid[emptyY][collumn].position = new Position(0, 0, emptyY, collumn);
+                        this.grid[row][collumn] = null;
 
-                    this.dropMoves.push({
-                        tile: this.grid[emptyY][collumn],
-                        fromRow: row,
-                        toRow: emptyY,
-                        column: collumn,
-                    });
-                    // Ищем следующую пустую ячейку выше
-                    while (emptyY >= 0 && this.grid[emptyY][collumn] !== null) {
-                        emptyY--;
+                        this.dropMoves.push({
+                            tile: this.grid[emptyY][collumn],
+                            fromRow: row,
+                            toRow: emptyY,
+                            column: collumn,
+                        });
+                        // Ищем следующую пустую ячейку выше
+                        while (emptyY >= 0 && this.grid[emptyY][collumn] !== null) {
+                            emptyY--;
+                        }
                     }
                 }
-            }
         }
     }
 
