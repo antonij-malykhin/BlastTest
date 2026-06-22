@@ -1,4 +1,6 @@
-﻿import { TileViewFactory } from "../factory/TileViewFactory";
+﻿import LocalEventEmitter from "../EventEmitter";
+import { TileViewFactory } from "../factory/TileViewFactory";
+import { BoardEvents, TileSelectedEventName } from "../GameEvents";
 import { Board, TileDropMove } from "../model/Board";
 import { Position, Tile } from "../model/Tile";
 import { AnimatorBoardView } from "./AnimatorBoardView";
@@ -24,8 +26,6 @@ export interface BoardUpdateViewModel {
 
 @ccclass
 export class BoardView extends cc.Component {
-    public static readonly TileSelectedEventName = "tile-selected";
-    
     @property(cc.Label)
     private debugBoard: cc.Label = null;
     
@@ -44,6 +44,7 @@ export class BoardView extends cc.Component {
     private tileWidth: number;
     private tileHeight: number;
     private highlightedTiles: TileView[] = [];
+    private eventEmmiter: LocalEventEmitter<BoardEvents>;
 
     protected onEnable(): void {
         this.node.on(cc.Node.EventType.TOUCH_END, this.onBoardTouchEnd, this, true);
@@ -60,6 +61,7 @@ export class BoardView extends cc.Component {
         tileWidth: number,
         tileHeight: number,
         board: Board,
+        boardEventEmmiter: LocalEventEmitter<BoardEvents>,
         canRouteTouch: () => boolean
     ): void {
         this.horizontalTileCount = width;
@@ -69,6 +71,7 @@ export class BoardView extends cc.Component {
         this.board =  board;
         this.tileViewFactory = tileViewFactory;
         this.tileViews = new Map<string, TileView>();
+        this.eventEmmiter = boardEventEmmiter;
         this.inputRouter = new BoardInputRouter(
             () => this.tileViews,
             canRouteTouch,
@@ -106,10 +109,11 @@ export class BoardView extends cc.Component {
         }
         await this.delay(this.animationBeforeCreateTileDelay);
         this.updateCollapsedTiles(viewModel.collapseTiles);
-        await this.animator.animateFall(viewModel.dropMoves, viewModel.verticalTileCount);
         this.updateFallenTiles(viewModel.dropMoves);
         this.addNewTileViews(viewModel.newTiles);
-        await this.animator.animateDropNew(viewModel.dropMoves, viewModel.verticalTileCount);
+        //await this.animator.animateFall(viewModel.dropMoves, viewModel.verticalTileCount);
+        //await this.animator.animateDropNew(viewModel.dropMoves, viewModel.verticalTileCount);
+        await this.animator.animateFallAll(viewModel.dropMoves, viewModel.verticalTileCount);
     }
 
     public async updateViewAfterShuffle(board: Board): Promise<void> {
@@ -168,7 +172,7 @@ export class BoardView extends cc.Component {
             column: tileView.position.column,
         };
 
-        this.node.emit(BoardView.TileSelectedEventName, command);
+        this.eventEmmiter.emit(TileSelectedEventName, command);
     }
 
     private onBoardTouchEnd(event: cc.Event.EventTouch): void {

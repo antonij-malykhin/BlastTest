@@ -7,17 +7,18 @@ const  {ccclass, property} = cc._decorator;
 
 @ccclass
 export class LevelView extends cc.Component {
+    @property(BoardView)
+    public boardView: BoardView = null;
+
+    @property(BoosterView)
+    public boosterView: BoosterView = null;
+
     @property(ScoreCounterView)
     private scoreCounterView: ScoreCounterView = null;
     
     @property(MoveCounterView)
     private moveCounterView: MoveCounterView = null;
     
-    @property(BoardView)
-    public boardView: BoardView = null;
-
-    @property(BoosterView)
-    public boosterView: BoosterView = null;
 
     public init(targetScore: number, startMovesCount: number) : void {
         this.scoreCounterView.init(targetScore);
@@ -34,13 +35,5 @@ export class LevelView extends cc.Component {
 
     public updateMoves(moves: number) : void {
         this.moveCounterView.updateMoves(moves);
-    }
-
-    private onTapBoombButton() : void {
-        this.node.emit(BoosterView.BombTapEventName);
-    }
-
-    private onTapTeleportButton() : void {
-        this.node.emit(BoosterView.TeleportTapEventName);
     }
 }

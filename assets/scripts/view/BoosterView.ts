@@ -41,6 +41,7 @@ export class BoosterView extends cc.Component {
         this.bombCount.string = `${bompCount}`;
     }
 
+    // TODO: Убрать switch - перенести в отдельные классы BoosterItemView
     public setActiveBooster(Bomb: BoosterType) : void {
         switch (Bomb) {
             case BoosterType.Bomb:

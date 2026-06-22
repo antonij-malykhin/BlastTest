@@ -2,7 +2,7 @@
 import LocalEventEmitter from "../EventEmitter";
 import { TileFactory } from "../factory/TileFactory";
 import { TileViewFactory } from "../factory/TileViewFactory";
-import { GameEvents, LevelLoseEvent, LevelWinEvent, MovesChangedEvent, ScoreChangedEvent } from "../GameEvents";
+import { BoardEvents, GameEvents, LevelLoseEvent, LevelWinEvent, MovesChangedEvent, ScoreChangedEvent, TileSelectedEventName } from "../GameEvents";
 import { Board } from "../model/Board";
 import { BoosterHandler } from "../model/BoosterHandler";
 import { BoosterType } from "../model/BoosterType";
@@ -17,7 +17,6 @@ import { AvailableMovesDetectionService } from "../service/AvailableMovesDetecti
 import { InteractionPolicyService } from "../service/InteractionPolicyService";
 import { ShuffleService } from "../service/ShuffleService";
 import { BoardTileSelectedCommand, BoardUpdateViewModel, BoardView } from "../view/BoardView";
-import { BoosterView } from "../view/BoosterView";
 import { LevelView } from "../view/LevelView";
 
 export class LevelController {
@@ -36,6 +35,7 @@ export class LevelController {
     private readonly interactionPolicy: InteractionPolicyService;
 
     private updateInProgress: boolean;
+    private boardEventEmmiter: LocalEventEmitter<BoardEvents>;
 
     constructor(
         levelView: LevelView,
@@ -51,6 +51,7 @@ export class LevelController {
         const moveCounter = new MoveCounter(config.maxMoves, this.state);
         const tileFactory = new TileFactory();
 
+        this.boardEventEmmiter = new LocalEventEmitter<BoardEvents>();
         this.board = new Board(config, tileFactory);
         this.tileMatcher = new TileMatcher(config, this.board);
         this.availableMovesDetectionService = new AvailableMovesDetectionService(this.tileMatcher, config.minGroupSize);
@@ -65,12 +66,11 @@ export class LevelController {
             config.tileWidth,
             config.tileHeight,
             this.board,
+            this.boardEventEmmiter,
             () => this.interactionPolicy.canAcceptBoardInput(this.getInteractionState())
         );
         
-        this.levelView.boardView.node.on(BoardView.TileSelectedEventName, this.handleTileSelected, this);
-        this.levelView.node.on(BoosterView.BombTapEventName, this.handleBoombButton, this);
-        this.levelView.node.on(BoosterView.TeleportTapEventName, this.handleTeleportButton, this);
+        this.boardEventEmmiter.on(TileSelectedEventName, this.handleTileSelected);
         
         this.shuffleService = new ShuffleService(this.board, this.availableMovesDetectionService);
         this.simpleTileHandler = new SimpleTileHandler(this.board, scoreCounter, moveCounter, this.tileMatcher, config.superTileThreshold);
@@ -95,9 +95,7 @@ export class LevelController {
         this.state.gameEventEmitter.off(ScoreChangedEvent, this.handleScoreChanged);
         this.state.gameEventEmitter.off(MovesChangedEvent, this.handleMovesChanged);
 
-        this.levelView.boardView.node.off(BoardView.TileSelectedEventName, this.handleTileSelected, this);
-        this.levelView.node.off(BoosterView.BombTapEventName, this.handleBoombButton, this);
-        this.levelView.node.off(BoosterView.TeleportTapEventName, this.handleTeleportButton, this);
+        this.boardEventEmmiter.off(TileSelectedEventName, this.handleTileSelected);
         this.levelView.destroy();
     }
 
@@ -157,18 +155,6 @@ export class LevelController {
             this.board.clearDropMoves();
         }
     }
-    
-    private handleTeleportButton() : void {
-        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
-
-        this.boosterHandler.selectBooster(BoosterType.Teleport);
-    }
-
-    private handleBoombButton() : void {
-        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
-
-        this.boosterHandler.selectBooster(BoosterType.Bomb);
-    }
 
     private handleMovesChanged = (event: {moves: number}) : void => {
         this.levelView.updateMoves(event.moves);
@@ -178,14 +164,14 @@ export class LevelController {
         this.levelView.updateScore(event.score);
     }
 
-    private async handleTileSelected(command: BoardTileSelectedCommand): Promise<void> {
+    private handleTileSelected = (command: BoardTileSelectedCommand): void => {
         if (!command) return;
 
         const tile = this.board.getTileById(command.tileId) || this.board.getTileAt(this.board.getPositionBy(command.row, command.column));
         if (!tile) return;
 
         const position = tile.position;
-        await this.selectTile(position);
+        this.selectTile(position);
     }
 
     private createBoardUpdateViewModel(): BoardUpdateViewModel {
