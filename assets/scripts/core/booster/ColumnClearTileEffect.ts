@@ -1,6 +1,6 @@
-﻿import { Board } from "./Board";
-import { ITileEffect } from "./ITileEffect";
-import { Tile, TileType } from "./Tile";
+﻿import { Board } from "../board/Board";
+import { ITileEffect } from "../board/tile/ITileEffect";
+import { Tile, TileType } from "../board/tile/Tile";
 
 export class ColumnClearTileEffect implements ITileEffect {
     public readonly type = TileType.COL_CLEAR;

@@ -1,4 +1,4 @@
-import { Position, Tile, TileType } from "../model/Tile";
+import { Position, Tile, TileType } from "../core/board/tile/Tile";
 
 export class TileFactory {
     private nextTileId = 0;

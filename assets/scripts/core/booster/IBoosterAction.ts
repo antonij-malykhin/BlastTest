@@ -1,5 +1,5 @@
 import { BoosterType } from "./BoosterType";
-import { Tile } from "./Tile";
+import { Tile } from "../board/tile/Tile";
 
 export interface BoosterActivateResult {
     shouldConsume: boolean;

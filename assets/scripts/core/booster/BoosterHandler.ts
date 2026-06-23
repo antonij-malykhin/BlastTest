@@ -1,14 +1,14 @@
-import { Board } from "./Board";
-import { Tile } from "./Tile";
+import { Board } from "../board/Board";
+import { Tile } from "../board/tile/Tile";
 import { BoosterType } from "./BoosterType";
-import { ScoreCounter } from "./ScoreCounter";
-import { BoosterView } from "../view/BoosterView";
-import { InteractionPolicyService, InteractionPolicyState } from "../service/InteractionPolicyService";
+import { ScoreCounter } from "../ScoreCounter";
+import { BoosterView } from "../../view/BoosterView";
+import { InteractionPolicyService, InteractionPolicyState } from "../../service/InteractionPolicyService";
 import { BombBoosterAction } from "./BombBoosterAction";
 import { BoosterActionRegistry } from "./BoosterActionRegistry";
 import { IBoosterAction } from "./IBoosterAction";
 import { TeleportBoosterAction } from "./TeleportBoosterAction";
-import { BoardView } from "../view/BoardView";
+import { BoardView } from "../../view/BoardView";
 
 export class BoosterHandler {
     private board: Board;
@@ -78,13 +78,11 @@ export class BoosterHandler {
     }
 
     private subscribesToBoosterButtonsEvent() : void {
-        this.boosterView.node.on(BoosterView.TeleportTapEventName, this.onTapTeleportButton, this);
-        this.boosterView.node.on(BoosterView.BombTapEventName, this.onTapBoombButton, this);
+        this.boosterView.onBoosterTap(this.onTapBooster);
     }
 
     private unsubscribesFromBoosterButtonsEvent() : void {
-        this.boosterView.node.off(BoosterView.TeleportTapEventName, this.onTapTeleportButton, this);
-        this.boosterView.node.off(BoosterView.BombTapEventName, this.onTapBoombButton, this);
+        this.boosterView.offBoosterTap(this.onTapBooster);
     }
     
     private handleBooster(tile: Tile) : void {
@@ -118,49 +116,29 @@ export class BoosterHandler {
         this.boosterView.setActiveBooster(BoosterType.None);
     }
 
-    private onTapBoombButton() : void {
+    private onTapBooster = (boosterType: BoosterType): void => {
         if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
 
-        this.selectBooster(BoosterType.Bomb);
-    }
-
-    private onTapTeleportButton() : void {
-        if (!this.interactionPolicy.canAcceptBoosterInput(this.getInteractionState())) return;
-
-        this.selectBooster(BoosterType.Teleport);
+        this.selectBooster(boosterType);
     }
 
     private syncBoosterButtonsAvailability() : void {
-        const teleportAction = this.getAction(BoosterType.Teleport);
-        const bombAction = this.getAction(BoosterType.Bomb);
-
-        if (teleportAction && teleportAction.getRemainingUses() <= 0) {
-            this.boosterView.disableTeleport();
-        }
-
-        if (bombAction && bombAction.getRemainingUses() <= 0) {
-            this.boosterView.disableBomb();
+        for (const boosterAction of this.actionRegistry.getAllActions()) {
+            if (boosterAction.getRemainingUses() <= 0) {
+                this.disableBoosterByType(boosterAction.type);
+            }
         }
     }
 
     private updateBoosterCountsView() : void {
-        const teleportAction = this.getAction(BoosterType.Teleport);
-        const bombAction = this.getAction(BoosterType.Bomb);
-
-        const teleportCount = teleportAction ? teleportAction.getRemainingUses() : 0;
-        const bombCount = bombAction ? bombAction.getRemainingUses() : 0;
-        this.boosterView.updateView(teleportCount, bombCount);
+        for (const boosterAction of this.actionRegistry.getAllActions()) {
+            const remainingUses = boosterAction.getRemainingUses();
+            this.boosterView.updateView(boosterAction.type, remainingUses);
+        }
     }
 
     private disableBoosterByType(boosterType: BoosterType): void {
-        if (boosterType === BoosterType.Bomb) {
-            this.boosterView.disableBomb();
-            return;
-        }
-
-        if (boosterType === BoosterType.Teleport) {
-            this.boosterView.disableTeleport();
-        }
+        this.boosterView.disableBooster(boosterType);
     }
 
     private getAction(type: BoosterType): IBoosterAction | null {

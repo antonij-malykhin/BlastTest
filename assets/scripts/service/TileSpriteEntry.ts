@@ -1,4 +1,4 @@
-import { TileType } from "../model/Tile";
+import { TileType } from "../core/board/tile/Tile";
 
 const { ccclass, property} = cc._decorator;
 

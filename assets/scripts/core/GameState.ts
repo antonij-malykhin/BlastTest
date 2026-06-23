@@ -1,6 +1,6 @@
 import { GameConfig } from "../config/GameConfig";
-import LocalEventEmitter from "../EventEmitter";
-import { GameEvents, MovesChangedEvent, ScoreChangedEvent } from "../GameEvents";
+import LocalEventEmitter from "../infrastucture/EventEmitter";
+import { GameEvents, MovesChangedEvent, ScoreChangedEvent } from "../infrastucture/GameEvents";
 
 export class GameState {
     private readonly winScore: number;

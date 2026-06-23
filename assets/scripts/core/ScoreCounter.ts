@@ -1,5 +1,5 @@
 import { GameState } from "./GameState";
-import { Tile } from "./Tile";
+import { Tile } from "./board/tile/Tile";
 
 export class ScoreCounter {
     private score: number;

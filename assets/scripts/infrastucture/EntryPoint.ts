@@ -1,4 +1,4 @@
-import { AssetsPath } from "../AssetsPath";
+import { AssetsPath } from "../infrastucture/AssetsPath";
 import { GameConfig } from "../config/GameConfig";
 import { GameConfigPrefab } from "../config/GameConfigPrefab";
 import { GameController } from "../controller/GameContoller";
@@ -44,7 +44,7 @@ export class EntryPoint extends cc.Component {
             superTileThreshold: this.gameConfigNode.superTileThreshold,
             bombRadius: this.gameConfigNode.bombRadius,
             superTileRadius: this.gameConfigNode.superTileRadius,
-                    maxAutoShuffles: this.gameConfigNode.maxAutoShuffles,
+            maxAutoShuffles: this.gameConfigNode.maxAutoShuffles,
         };
     }
 

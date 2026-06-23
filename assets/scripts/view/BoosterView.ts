@@ -1,125 +1,90 @@
-import { BoosterType } from "../model/BoosterType";
+import { BoosterType } from "../core/booster/BoosterType";
+import LocalEventEmitter from "../infrastucture/EventEmitter";
+import { BoosterItemView } from "./BoosterItemView";
 
 const { ccclass, property } = cc._decorator;
 
+export const BoosterTapEventName = "booster-tapped";
+
+export interface BoosterViewEvents {
+    "booster-tapped": BoosterType;
+}
+
 @ccclass
 export class BoosterView extends cc.Component {
-    public static readonly BombTapEventName = 'onTapBoombButton';
-    public static readonly TeleportTapEventName = 'onTapTeleportButton';
+    @property([BoosterItemView])
+    private boosterItems: BoosterItemView[] = [];
 
-    @property(cc.Label)
-    private teleportCount: cc.Label = null;
+    private selectedBoosterItem: BoosterItemView = null;
+    private readonly boosterEventEmitter = new LocalEventEmitter<BoosterViewEvents>();
 
-    @property(cc.Label)
-    private bombCount: cc.Label = null;
-
-    @property(cc.Button)
-    private teleportButton: cc.Button = null;
-    
-    @property(cc.Button)
-    private bombButton: cc.Button = null;
-
-    @property(cc.Integer)
-    private emptyBoosterOpacity = 100;
-
-    @property(cc.Integer)
-    private animationScaleUpDuration = 0.4;
-    
-    @property(cc.Integer)
-    private animationScaleUpValue = 1.15;
-    
-    @property(cc.Integer)
-    private animationScaleDownDuration = 0.4;
-    
-    @property(cc.Integer)
-    private animationScaleDownValue = 1.0;
-
-    private selectedBoosterNode: cc.Node;
-
-    public updateView(teleportCount: number, bompCount: number) : void {
-        this.teleportCount.string = `${teleportCount}`;
-        this.bombCount.string = `${bompCount}`;
+    public updateView(boosterType: BoosterType, count: number): void {
+        this.updateBoosterCount(boosterType, count);
     }
 
-    // TODO: Убрать switch - перенести в отдельные классы BoosterItemView
-    public setActiveBooster(Bomb: BoosterType) : void {
-        switch (Bomb) {
-            case BoosterType.Bomb:
-                this.dismissHightlights();
-                this.selectedBoosterNode = this.bombButton.node;
-                this.hightlightSelection(this.selectedBoosterNode);
-                break;
-            case BoosterType.Teleport:
-                this.dismissHightlights();
-                this.selectedBoosterNode = this.teleportButton.node;
-                this.hightlightSelection(this.selectedBoosterNode);
-                break;
-            case  BoosterType.None:
-                this.dismissHightlights();
-                this.selectedBoosterNode = null;
-                break;
+    public setActiveBooster(boosterType: BoosterType): void {
+        this.dismissHighlights();
+
+        if (boosterType === BoosterType.None) {
+            this.selectedBoosterItem = null;
+            return;
+        }
+
+        const item = this.getItemByType(boosterType);
+        if (!item) return;
+
+        this.selectedBoosterItem = item;
+        this.selectedBoosterItem.highlightSelection();
+    }
+
+    public onBoosterTap(callback: (boosterType: BoosterType) => void): void {
+        this.boosterEventEmitter.on(BoosterTapEventName, callback);
+    }
+
+    public offBoosterTap(callback: (boosterType: BoosterType) => void): void {
+        this.boosterEventEmitter.off(BoosterTapEventName, callback);
+    }
+
+    public disableBooster(type: BoosterType): void {
+        const item = this.getItemByType(type);
+        if (!item) return;
+
+        item.disable();
+
+        if (this.selectedBoosterItem && this.selectedBoosterItem.type === type) {
+            this.dismissHighlights();
+            this.selectedBoosterItem = null;
         }
     }
 
-    public disableTeleport() : void {
-        this.teleportButton.node.opacity = this.emptyBoosterOpacity;
-        this.unsubscribeFromTeleportButton();
+    protected onLoad(): void {
+        for (const item of this.boosterItems) {
+            if (!item) continue;
+
+            item.initialize(this.boosterEventEmitter);
+        }
     }
 
-    public disableBomb() : void {
-        this.bombButton.node.opacity = this.emptyBoosterOpacity;
-        this.unsubscribeFromBombButton();
+    private dismissHighlights(): void {
+        if (!this.selectedBoosterItem) return;
+
+        this.selectedBoosterItem.dismissHighlight();
     }
 
-    public dismissHightlights() : void {
-        if (!this.selectedBoosterNode) return;
+    private updateBoosterCount(type: BoosterType, value: number): void {
+        const item = this.getItemByType(type);
+        if (!item) return;
 
-        this.selectedBoosterNode.stopAllActions();
-        this.selectedBoosterNode.scale = 1;
-    }
-
-    protected onLoad(): void {      
-        this.subscribeToBombButton();
-        this.subscribeToTeleportButton();
+        item.setCount(value);
     }
 
-    private subscribeToTeleportButton() : void {
-        this.teleportButton.node.on(cc.Node.EventType.TOUCH_END, this.onTapTeleportButton, this);
-    }
+    private getItemByType(type: BoosterType): BoosterItemView | null {
+        for (const item of this.boosterItems) {
+            if (item && item.type === type) {
+                return item;
+            }
+        }
 
-    private subscribeToBombButton() : void {
-        this.bombButton.node.on(cc.Node.EventType.TOUCH_END, this.onTapBoombButton, this);
-    }
-
-    private unsubscribeFromTeleportButton() : void {
-        this.teleportButton.node.off(cc.Node.EventType.TOUCH_END, this.onTapTeleportButton, this);
-    }
-
-    private unsubscribeFromBombButton() : void {
-        this.bombButton.node.off(cc.Node.EventType.TOUCH_END, this.onTapBoombButton, this);
-    }
-    
-    protected onDestroy(): void {
-        this.unsubscribeFromTeleportButton();
-        this.unsubscribeFromBombButton();
-    }
-    
-    private hightlightSelection(node: cc.Node) : void {
-        this.selectedBoosterNode = node;
-        cc.tween(node)
-        .repeatForever(
-            cc.tween()
-                .to(this.animationScaleUpDuration, { scale: this.animationScaleUpValue }, { easing: 'sineOut' })
-                .to(this.animationScaleDownDuration, { scale: this.animationScaleDownValue }, { easing: 'sineIn' })
-        )
-        .start();
-    }
-
-    private onTapBoombButton() : void {
-        this.node.emit(BoosterView.BombTapEventName);
-    }
-
-    private onTapTeleportButton() : void {
-        this.node.emit(BoosterView.TeleportTapEventName);
+        return null;
     }
 }

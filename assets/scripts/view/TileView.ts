@@ -1,4 +1,4 @@
-import { Position, Tile } from "../model/Tile";
+import { Position } from "../core/board/tile/Tile";
 import { TileSpriteDatabase } from "../service/TileSpriteDataBase";
 
 const { ccclass, property } = cc._decorator;
@@ -52,6 +52,7 @@ export class TileView extends cc.Component {
             return;
         }
 
+        this.position = tileModel.position;
         this.node.active = true;
         this.tileId = tileModel.tileId;
         this.sprite.spriteFrame = TileSpriteDatabase.instance.getSpriteForType(tileModel.type);

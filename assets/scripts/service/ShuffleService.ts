@@ -1,4 +1,4 @@
-import { Board } from "../model/Board";
+import { Board } from "../core/board/Board";
 import { AvailableMovesDetectionService } from "./AvailableMovesDetectionService";
 
 export class ShuffleService {

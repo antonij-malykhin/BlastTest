@@ -1,12 +1,11 @@
-﻿import { GameConfig } from "../config/GameConfig";
-import { TileFactory } from "../factory/TileFactory";
-import { Position, Tile } from "./Tile";
+﻿import { GameConfig } from "../../config/GameConfig";
+import { TileFactory } from "../../factory/TileFactory";
+import { Position, Tile } from "./tile/Tile";
 
 export interface TileDropMove {
     tile: Tile;
-    fromRow: number;
-    toRow: number;
-    column: number;
+    fromPosition: Position;
+    toPosition: Position;
 }
 
 export class Board {
@@ -101,6 +100,8 @@ export class Board {
         const secondRow = secondPosition.row;
         const secondColumn = secondPosition.column;
 
+        this.swapTile = [this.grid[firstRow][firstColumn], this.grid[secondRow][secondColumn]];
+
         const temp = this.grid[firstRow][firstColumn];
         this.grid[firstRow][firstColumn] = this.grid[secondRow][secondColumn];
         this.grid[secondRow][secondColumn] = temp;
@@ -193,9 +194,8 @@ export class Board {
 
                         this.dropMoves.push({
                             tile: this.grid[emptyY][collumn],
-                            fromRow: row,
-                            toRow: emptyY,
-                            column: collumn,
+                            fromPosition: new Position(0, 0, row, collumn),
+                            toPosition: new Position(0, 0, emptyY, collumn),
                         });
                         // Ищем следующую пустую ячейку выше
                         while (emptyY >= 0 && this.grid[emptyY][collumn] !== null) {
@@ -215,9 +215,8 @@ export class Board {
 
                     this.dropMoves.push({
                         tile: this.grid[row][collumn],
-                        fromRow: this.config.verticalTileCount,
-                        toRow: row,
-                        column: collumn,
+                        fromPosition: new Position(0, 0, this.config.verticalTileCount, collumn),
+                        toPosition: new Position(0, 0, row, collumn),
                     });
                 }
             }

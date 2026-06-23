@@ -1,6 +1,6 @@
-import { Board } from "./Board";
-import { MoveCounter } from "./MoveCounter";
-import { ScoreCounter } from "./ScoreCounter";
+import { Board } from "../Board";
+import { MoveCounter } from "../../MoveCounter";
+import { ScoreCounter } from "../../ScoreCounter";
 import { Tile } from "./Tile";
 import { TileMatcher } from "./TileMatcher";
 

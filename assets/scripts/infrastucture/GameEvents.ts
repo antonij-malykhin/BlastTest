@@ -1,4 +1,4 @@
-import { BoardTileSelectedCommand } from "./view/BoardView";
+import { BoardTileSelectedCommand } from "../view/BoardView";
 
 export const ScoreChangedEvent = "score-changed";
 export const MovesChangedEvent = "moves-changed";

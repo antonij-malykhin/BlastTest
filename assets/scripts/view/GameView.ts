@@ -1,4 +1,4 @@
-import { RestartEventName } from "../GameEvents";
+import { RestartEventName } from "../infrastucture/GameEvents";
 
 const  {ccclass, property} = cc._decorator;
 

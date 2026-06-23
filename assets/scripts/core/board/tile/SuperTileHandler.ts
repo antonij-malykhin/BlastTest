@@ -1,10 +1,10 @@
-import { Board } from "./Board";
+import { Board } from "../Board";
 import { BoardClearTileEffect } from "./BoardClearTileEffect";
-import { ColumnClearTileEffect } from "./ColumnClearTileEffect";
-import { MoveCounter } from "./MoveCounter";
-import { RadiusClearTileEffect } from "./RadiusClearTileEffect";
-import { RowClearTileEffect } from "./RowClearTileEffect";
-import { ScoreCounter } from "./ScoreCounter";
+import { ColumnClearTileEffect } from "../../booster/ColumnClearTileEffect";
+import { MoveCounter } from "../../MoveCounter";
+import { RadiusClearTileEffect } from "../../booster/RadiusClearTileEffect";
+import { RowClearTileEffect } from "../../booster/RowClearTileEffect";
+import { ScoreCounter } from "../../ScoreCounter";
 import { Tile } from "./Tile";
 import { TileEffectRegistry } from "./TileEffectRegistry";
 

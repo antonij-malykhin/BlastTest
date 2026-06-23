@@ -1,4 +1,4 @@
-import { Board } from "./Board";
+import { Board } from "../Board";
 import { Tile, TileType } from "./Tile";
 
 export interface ITileEffect {

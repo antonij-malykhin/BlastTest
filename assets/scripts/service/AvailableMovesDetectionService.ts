@@ -1,4 +1,4 @@
-import { TileMatcher } from "../model/TileMatcher";
+import { TileMatcher } from "../core/board/tile/TileMatcher";
 
 export class AvailableMovesDetectionService {
     private readonly tileMatcher: TileMatcher;

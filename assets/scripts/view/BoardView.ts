@@ -1,8 +1,8 @@
-﻿import LocalEventEmitter from "../EventEmitter";
+﻿import LocalEventEmitter from "../infrastucture/EventEmitter";
 import { TileViewFactory } from "../factory/TileViewFactory";
-import { BoardEvents, TileSelectedEventName } from "../GameEvents";
-import { Board, TileDropMove } from "../model/Board";
-import { Position, Tile } from "../model/Tile";
+import { BoardEvents, TileSelectedEventName } from "../infrastucture/GameEvents";
+import { Board, TileDropMove } from "../core/board/Board";
+import { Position, Tile } from "../core/board/tile/Tile";
 import { AnimatorBoardView } from "./AnimatorBoardView";
 import { BoardInputRouter } from "./BoardInputRouter";
 import { TileView, TileViewModel } from "./TileView";
@@ -19,16 +19,13 @@ export interface BoardUpdateViewModel {
     swapTileModels: [TileViewModel, TileViewModel];
     collapseTiles: Tile[];
     dropMoves: TileDropMove[];
-    createdSuperTile: Tile | null;
+    createdSuperTile: TileViewModel | null;
     newTiles: Tile[];
     verticalTileCount: number;
 }
 
 @ccclass
 export class BoardView extends cc.Component {
-    @property(cc.Label)
-    private debugBoard: cc.Label = null;
-    
     @property(AnimatorBoardView)
     private animator: AnimatorBoardView = null;
     
@@ -37,7 +34,6 @@ export class BoardView extends cc.Component {
     
     private tileViews: Map<string, TileView>;
     private tileViewFactory: TileViewFactory;
-    private board: Board;
     private inputRouter: BoardInputRouter;
     private horizontalTileCount: number;
     private verticalTileCount: number;
@@ -53,6 +49,17 @@ export class BoardView extends cc.Component {
     protected onDisable(): void {
         this.node.off(cc.Node.EventType.TOUCH_END, this.onBoardTouchEnd, this, true);
     }
+    
+    public setupTileViews(tileViewModels: TileViewModel[]) : void {
+        for (const tileViewModel of tileViewModels) {
+            const tileView = this.tileViewFactory.createTileView(this.node);
+            tileView.init(tileViewModel, new cc.Vec2(this.tileWidth, this.tileHeight));
+            this.tileViews.set(tileViewModel.tileId, tileView);
+        }
+
+        this.updateRenderOrder();
+        this.animator.setup(this.tileViews);
+    }
 
     public initialize(
         tileViewFactory: TileViewFactory,
@@ -60,7 +67,6 @@ export class BoardView extends cc.Component {
         height: number,
         tileWidth: number,
         tileHeight: number,
-        board: Board,
         boardEventEmmiter: LocalEventEmitter<BoardEvents>,
         canRouteTouch: () => boolean
     ): void {
@@ -68,7 +74,6 @@ export class BoardView extends cc.Component {
         this.verticalTileCount = height;
         this.tileWidth = tileWidth;
         this.tileHeight = tileHeight;
-        this.board =  board;
         this.tileViewFactory = tileViewFactory;
         this.tileViews = new Map<string, TileView>();
         this.eventEmmiter = boardEventEmmiter;
@@ -77,30 +82,12 @@ export class BoardView extends cc.Component {
             canRouteTouch,
             (tileView: TileView) => this.emitTileSelectedCommand(tileView)
         );
-        this.setupView(width, tileWidth, height, tileHeight);
-
-        for (let row = 0; row < height; row++) {
-            for (let collumn = 0; collumn < width; collumn++) {
-                const tile = board.getTileAt(board.getPositionBy(row, collumn));
-                if (!tile) continue;
-                const tileView = this.tileViewFactory.createTileView(this.node);
-                const tileViewModel = this.createTileViewModel(tile);
-                tileView.init(tileViewModel, new cc.Vec2(tileWidth, tileHeight));
-                this.tileViews.set(tile.id, tileView);
-            }
-        }
-
-        this.updateRenderOrder();
-
-        this.animator.setup(this.tileViews, this);
+        
+        this.node.width = width * tileWidth;
+        this.node.height = height * tileHeight;
     }
 
     public async updateView(viewModel: BoardUpdateViewModel): Promise<void> {
-        if (viewModel.swapTileModels[0] !== null && viewModel.swapTileModels[1] !== null) {
-            await this.animator.animateSwap(viewModel.swapTileModels[0].tileId, viewModel.swapTileModels[1].tileId);
-            this.updateSwapTiles(viewModel.swapTileModels[0], viewModel.swapTileModels[1]);
-        }
-        
         if (viewModel.createdSuperTile) {
             await this.animator.animateCollapsesToSuperTile(viewModel.collapseTiles, viewModel.dropMoves, viewModel.createdSuperTile);
             this.updateSuperTileView(viewModel.createdSuperTile);
@@ -111,9 +98,24 @@ export class BoardView extends cc.Component {
         this.updateCollapsedTiles(viewModel.collapseTiles);
         this.updateFallenTiles(viewModel.dropMoves);
         this.addNewTileViews(viewModel.newTiles);
-        //await this.animator.animateFall(viewModel.dropMoves, viewModel.verticalTileCount);
-        //await this.animator.animateDropNew(viewModel.dropMoves, viewModel.verticalTileCount);
         await this.animator.animateFallAll(viewModel.dropMoves, viewModel.verticalTileCount);
+    }
+
+    public async swapTiles(firstTile: Tile, secondTile: Tile) {
+        const firstTileView = this.tileViews.get(firstTile.id);
+        const secondTileView = this.tileViews.get(secondTile.id);
+        if (!firstTileView || !secondTileView) return;
+
+        const firstTileViewModel = this.createTileViewModel(firstTile);
+        const secondTileViewModel = this.createTileViewModel(secondTile);
+        if (!firstTileViewModel || !secondTileViewModel) return;
+
+        await this.animator.animateSwap(firstTileView.tileId, secondTileView.tileId);
+        firstTileView.updateView(firstTileViewModel);
+        secondTileView.updateView(secondTileViewModel);
+        this.animator.animateUnhighlight(firstTileView);
+        this.animator.animateUnhighlight(secondTileView);
+        this.updateRenderOrder();
     }
 
     public async updateViewAfterShuffle(board: Board): Promise<void> {
@@ -131,11 +133,6 @@ export class BoardView extends cc.Component {
         this.animator.animateHighlight(tileView);
     }
 
-    private setupView(width: number, tileWidth: number, height: number, tileHeight: number) : void {
-        this.node.width = width * tileWidth;
-        this.node.height = height * tileHeight;
-    }
-
     public createTileViewModel(tile: Tile) : TileViewModel | null {
         if (!tile) return null;
 
@@ -145,6 +142,27 @@ export class BoardView extends cc.Component {
             position: viewPostion,
             type: tile.type
         };
+    }
+
+    public getViewTilePosition(row: number, collumn: number): Position {
+        const boardOrigin = this.node.getPosition();
+
+        const boardWidth = this.tileWidth * this.horizontalTileCount;
+        const boardHeight = this.tileHeight * this.verticalTileCount;
+
+        const topLeftX = boardOrigin.x - boardWidth / 2;
+        const topLeftY = boardOrigin.y + boardHeight / 2;
+
+        const x = topLeftX + collumn * this.tileWidth + this.tileWidth / 2;
+        const y = topLeftY - row * this.tileHeight - this.tileHeight / 2;
+
+        return new Position(x, y, row, collumn);
+    }
+
+    public getViewTilePositionBy(position: Position): Position {
+        if (!position) return null;
+
+        return this.getViewTilePosition(position.row, position.column);
     }
 
     private updateRenderOrder() : void {
@@ -183,7 +201,7 @@ export class BoardView extends cc.Component {
 
     private updateFallenTiles(dropMoves: TileDropMove[]): void {
         for (const dropMove of dropMoves) {
-            if (dropMove.fromRow == this.verticalTileCount) continue;
+            if (dropMove.fromPosition.row == this.verticalTileCount) continue;
             
             const tileView = this.tileViews.get(dropMove.tile.id);
             if (!tileView) continue;
@@ -193,23 +211,11 @@ export class BoardView extends cc.Component {
         }
     }
 
-    private updateSwapTiles(firstTileViewModel: TileViewModel, secondTileViewModel: TileViewModel) : void {
-        if (!firstTileViewModel || !secondTileViewModel) return;
-
-        const tileView1 = this.tileViews.get(firstTileViewModel.tileId);
-        const tileView2 = this.tileViews.get(secondTileViewModel.tileId);
-        if (!tileView1 || !tileView2) return;
-
-        tileView1.updateView(secondTileViewModel);
-        tileView2.updateView(firstTileViewModel);
-    }
-
-    private updateSuperTileView(createdMegaTile: Tile) : void {
-        const megaTileView = this.tileViews.get(createdMegaTile.id);
+    private updateSuperTileView(createdMegaTile: TileViewModel) : void {
+        const megaTileView = this.tileViews.get(createdMegaTile.tileId);
         if (!megaTileView) return;
 
-        let viewModel = this.createTileViewModel(createdMegaTile);
-        megaTileView.updateView(viewModel);
+        megaTileView.updateView(createdMegaTile);
     }
 
     private updateCollapsedTiles(collapseTiles: Tile[]) : void {
@@ -223,6 +229,7 @@ export class BoardView extends cc.Component {
     }
 
     private addNewTileViews(newTiles: Tile[]) : void {
+        if (!newTiles || newTiles.length === 0) return;
         for (const tile of newTiles) {
             if (!tile || this.tileViews.has(tile.id)) continue;
 
@@ -254,34 +261,6 @@ export class BoardView extends cc.Component {
         }
 
         this.updateRenderOrder();
-    }
-
-    public getViewTilePosition(row: number, collumn: number): Position {
-        const boardOrigin = this.node.getPosition();
-
-        const boardWidth = this.tileWidth * this.horizontalTileCount;
-        const boardHeight = this.tileHeight * this.verticalTileCount;
-
-        const topLeftX = boardOrigin.x - boardWidth / 2;
-        const topLeftY = boardOrigin.y + boardHeight / 2;
-
-        const x = topLeftX + collumn * this.tileWidth + this.tileWidth / 2;
-        const y = topLeftY - row * this.tileHeight - this.tileHeight / 2;
-
-        return new Position(x, y, row, collumn);
-    }
-
-    private printGrid() : void {
-        let rowString = "";
-        for (let row = 0; row < this.board.config.verticalTileCount; row++) {
-            for (let collumn = 0; collumn < this.board.config.horizontalTileCount; collumn++) {
-                const debugTile = this.board.getTileAt(this.board.getPositionBy(row, collumn));
-                rowString += "[" + row + "," + collumn + "]" + (debugTile ? debugTile.type : "null") + " ";
-            }
-            rowString += "\n";
-        }
-
-        this.debugBoard.string = rowString;
     }
 
     private delay(ms: number): Promise<void> {

@@ -1,8 +1,8 @@
-﻿import { Board } from "./Board";
+﻿import { Board } from "../board/Board";
 import { BoosterType } from "./BoosterType";
 import { BoosterActivateResult, IBoosterAction } from "./IBoosterAction";
-import { ScoreCounter } from "./ScoreCounter";
-import { Tile } from "./Tile";
+import { ScoreCounter } from "../ScoreCounter";
+import { Tile } from "../board/tile/Tile";
 
 export class BombBoosterAction implements IBoosterAction {
     public readonly type = BoosterType.Bomb;

@@ -1,7 +1,6 @@
-import { TileDropMove } from "../model/Board";
-import { Position, Tile } from "../model/Tile";
-import { BoardView } from "./BoardView";
-import { TileView } from "./TileView";
+import { TileDropMove } from "../core/board/Board";
+import { Position, Tile } from "../core/board/tile/Tile";
+import { TileView, TileViewModel } from "./TileView";
 
 const {ccclass, property} = cc._decorator;
 
@@ -32,7 +31,7 @@ export class AnimatorBoardView extends cc.Component {
     private animationSuperTileCommonScaleValue = 1.0;
 
     @property(cc.Integer)
-    private animationDropNewDelayBetweenEach = 0.15;
+    private animationDropNewDelayBetweenEach = 0.05;
 
     @property(cc.Integer)
     private animationDropNewDuration = 0.35;
@@ -46,24 +45,40 @@ export class AnimatorBoardView extends cc.Component {
     @property(cc.Integer)
     private animationShuffleSpawnDuration = 0.2;
 
-    private boardView: BoardView;
+    @property(cc.Integer)
+    private animationHighlightScaleUpDuration: number = 0.4;
+
+    @property(cc.Integer)
+    private animationHighlightScaleDownDuration: number = 0.4;
+
+    @property(cc.Integer)
+    private animationHighlightScaleUpValue: number = 1.2;
+
+    @property(cc.Integer)
+    private animationHighlightScaleDownValue: number = 1.0;
+
+    @property(cc.Integer)
+    private fallingAnimationDelayPerTile = 0.05;
+
     private tileViews: Map<string, TileView>;
 
-    public setup(tileViews: Map<string, TileView>, boardView: BoardView) : void {
+    public setup(tileViews: Map<string, TileView>) : void {
         this.tileViews = tileViews;
-        this.boardView = boardView;
     }
 
     public animateHighlight(tileView: TileView) {
         cc.tween(tileView.node)
-            .to(0.15, { scale: 1.2 }, { easing: 'backOut' })
+            .repeatForever(
+                cc.tween()
+                    .to(this.animationHighlightScaleUpDuration, { scale: this.animationHighlightScaleUpValue }, { easing: 'sineOut' })
+                    .to(this.animationHighlightScaleDownDuration, { scale: this.animationHighlightScaleDownValue }, { easing: 'sineIn' })
+            )
             .start();
     }
 
     public animateUnhighlight(tileView: TileView) {
-        cc.tween(tileView.node)
-            .to(0.15, { scale: 1.0 }, { easing: 'backIn' })
-            .start();
+        tileView.node.stopAllActions();
+        tileView.node.scale = 1;
     }
 
     public async animateSwap(firstTileId: string, secondTileId: string) :  Promise<void> {
@@ -82,20 +97,20 @@ export class AnimatorBoardView extends cc.Component {
         ]);
     }
 
-    public async animateCollapsesToSuperTile(collapseTiles: Tile[], dropMoves: TileDropMove[], megaTile: Tile) : Promise<void> {
+    public async animateCollapsesToSuperTile(collapseTiles: Tile[], dropMoves: TileDropMove[], megaTile: TileViewModel) : Promise<void> {
         const animations: Promise<void>[] = [];
 
         let superTilePositionBeforeCollapse: Position;
 
         for (const dropMove of dropMoves) {
-            if (dropMove.tile.id === megaTile.id && dropMove.fromRow !== dropMove.toRow) {
-                superTilePositionBeforeCollapse = this.boardView.getViewTilePosition(dropMove.fromRow, dropMove.column);
+            if (dropMove.tile.id === megaTile.tileId && dropMove.fromPosition.row !== dropMove.toPosition.row) {
+                superTilePositionBeforeCollapse = dropMove.fromPosition;
                 break;
             }
         }
 
         if (!superTilePositionBeforeCollapse) {
-            superTilePositionBeforeCollapse = this.boardView.getViewTilePosition(megaTile.position.row, megaTile.position.column);
+            superTilePositionBeforeCollapse = megaTile.position;
         }
 
         for (const tile of collapseTiles) {
@@ -117,7 +132,7 @@ export class AnimatorBoardView extends cc.Component {
 
         await Promise.all(animations);
 
-        const superTileView = this.tileViews.get(megaTile.id);
+        const superTileView = this.tileViews.get(megaTile.tileId);
         if (superTileView) {
             const superTileAnimation = new Promise<void>(resolve => {
                 cc.tween(superTileView.node)
@@ -178,93 +193,50 @@ export class AnimatorBoardView extends cc.Component {
         await Promise.all(animations);
     }
 
-    public async animateDropNew(dropMoves: TileDropMove[], verticalTileCount: number): Promise<void> {
-        const animations: Promise<void>[] = [];
-
-        dropMoves.forEach(tile => {
-            if (tile.fromRow === verticalTileCount) {
-                const tileView = this.tileViews.get(tile.tile.id);
-                if (!tileView) return;
-                const node = tileView.node;
-                const tileNewViewPosition = this.boardView.getViewTilePosition(tile.toRow, tile.column);
-                const delayDropTile = ((verticalTileCount - 1) - tile.toRow);
-                const totalDelay = this.animationDropNewDelayBetweenEach + delayDropTile / 20;
-                animations.push(new Promise(resolve => {
-                    cc.tween(node)
-                        .delay(delayDropTile)
-                        .to(this.animationDropNewDuration, { position: new cc.Vec3(tileNewViewPosition.x, tileNewViewPosition.y) }, { easing: 'bounceOut' })
-                        .call(() => resolve())
-                        .start();
-                }));
-            }
-        });
-
-        await Promise.all(animations);
-    }
-
-    public async animateFall(dropMoves: TileDropMove[], verticalTileCount: number) : Promise<void> {
-        const animations: Promise<void>[] = [];
-
-        for (const dropMove of dropMoves) {
-            if (dropMove.fromRow == verticalTileCount) continue;
-
-            const tileViewNewPosition = this.boardView.getViewTilePosition(dropMove.toRow, dropMove.column);
-            const tileView = this.tileViews.get(dropMove.tile.id);
-            if (!tileView) continue;
-
-            const node = tileView.node;
-            let delayDropTile = (verticalTileCount - 1) - dropMove.toRow;
-            if (node && cc.isValid(node)) {
-                animations.push(new Promise(resolve => {
-                    cc.tween(node)
-                        .delay(this.animationDropNewDelayBetweenEach + delayDropTile / 10)
-                        .to(this.animationTileFallDuration, { position: new cc.Vec3(tileViewNewPosition.x, tileViewNewPosition.y) }, { easing: 'bounceOut' })
-                        .call(() => resolve())
-                        .start();
-                }));
-            }
-        }
-        await Promise.all(animations);
-    }
-
     public async animateFallAll(dropMoves: TileDropMove[], verticalTileCount: number) : Promise<void> {
         const animations: Promise<void>[] = [];
+        let sumDelay = this.fallingAnimationDelayPerTile * dropMoves.length;
+
+        dropMoves.sort((left, right) => {
+            if (left.toPosition.row !== right.toPosition.row) {
+                return left.toPosition.row - right.toPosition.row;
+            }
+
+            return left.toPosition.column - right.toPosition.column;
+        });
 
         dropMoves.forEach(dropMove => {
             //Created tiles drop animations
-            if (dropMove.fromRow === verticalTileCount) {
+            if (dropMove.fromPosition.row === verticalTileCount) {
                 const tileView = this.tileViews.get(dropMove.tile.id);
                 if (!tileView) return;
                 const node = tileView.node;
-                const tileNewViewPosition = this.boardView.getViewTilePosition(dropMove.toRow, dropMove.column);
-                const delayDropTile = ((verticalTileCount - 1) - dropMove.toRow);
-                const totalDelay = this.animationDropNewDelayBetweenEach + delayDropTile / 20;
+                const totalDelay = this.animationDropNewDelayBetweenEach;
                 animations.push(new Promise(resolve => {
                     cc.tween(node)
-                        .delay(totalDelay)
-                        .to(this.animationTileFallDuration, { position: new cc.Vec3(tileNewViewPosition.x, tileNewViewPosition.y) }, { easing: 'bounceOut' })
+                        .delay(totalDelay + sumDelay)
+                        .to(this.animationTileFallDuration, { position: new cc.Vec3(dropMove.toPosition.x, dropMove.toPosition.y) }, { easing: 'bounceOut' })
                         .call(() => resolve())
                         .start();
                 }));
             } else {
                 // Exsist tiles drop animations
-                const tileViewNewPosition = this.boardView.getViewTilePosition(dropMove.toRow, dropMove.column);
                 const tileView = this.tileViews.get(dropMove.tile.id);
                 if (!tileView) return;
 
                 const node = tileView.node;
-                const delayDropTile = (verticalTileCount - 1) - dropMove.toRow;
-                const totalDelay = this.animationDropNewDelayBetweenEach + delayDropTile / 20;
+                const totalDelay = this.animationDropNewDelayBetweenEach;
                 if (node && cc.isValid(node)) {
                     animations.push(new Promise(resolve => {
                         cc.tween(node)
-                            .delay(totalDelay)
-                            .to(this.animationTileFallDuration, { position: new cc.Vec3(tileViewNewPosition.x, tileViewNewPosition.y) }, { easing: 'bounceOut' })
+                            .delay(totalDelay + sumDelay)
+                            .to(this.animationTileFallDuration, { position: new cc.Vec3(dropMove.toPosition.x, dropMove.toPosition.y) }, { easing: 'bounceOut' })
                             .call(() => resolve())
                             .start();
                     }));
                 }
             }
+            sumDelay -= this.fallingAnimationDelayPerTile;
         });
 
         await Promise.all(animations);

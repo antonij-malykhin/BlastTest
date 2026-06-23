@@ -1,22 +1,21 @@
 ﻿import { GameConfig } from "../config/GameConfig";
-import LocalEventEmitter from "../EventEmitter";
+import LocalEventEmitter from "../infrastucture/EventEmitter";
 import { TileFactory } from "../factory/TileFactory";
 import { TileViewFactory } from "../factory/TileViewFactory";
-import { BoardEvents, GameEvents, LevelLoseEvent, LevelWinEvent, MovesChangedEvent, ScoreChangedEvent, TileSelectedEventName } from "../GameEvents";
-import { Board } from "../model/Board";
-import { BoosterHandler } from "../model/BoosterHandler";
-import { BoosterType } from "../model/BoosterType";
-import { GameState } from "../model/GameState";
-import { MoveCounter } from "../model/MoveCounter";
-import { ScoreCounter } from "../model/ScoreCounter";
-import { SimpleTileHandler } from "../model/SimpleTileHandler";
-import { SuperTileHandler } from "../model/SuperTileHandler";
-import { Position } from "../model/Tile";
-import { TileMatcher } from "../model/TileMatcher";
+import { BoardEvents, GameEvents, LevelLoseEvent, LevelWinEvent, MovesChangedEvent, ScoreChangedEvent, TileSelectedEventName } from "../infrastucture/GameEvents";
+import { Board } from "../core/board/Board";
+import { BoosterHandler } from "../core/booster/BoosterHandler";
+import { GameState } from "../core/GameState";
+import { MoveCounter } from "../core/MoveCounter";
+import { ScoreCounter } from "../core/ScoreCounter";
+import { SimpleTileHandler } from "../core/board/tile/SimpleTileHandler";
+import { SuperTileHandler } from "../core/board/tile/SuperTileHandler";
+import { Position } from "../core/board/tile/Tile";
+import { TileMatcher } from "../core/board/tile/TileMatcher";
 import { AvailableMovesDetectionService } from "../service/AvailableMovesDetectionService";
 import { InteractionPolicyService } from "../service/InteractionPolicyService";
 import { ShuffleService } from "../service/ShuffleService";
-import { BoardTileSelectedCommand, BoardUpdateViewModel, BoardView } from "../view/BoardView";
+import { BoardTileSelectedCommand, BoardUpdateViewModel } from "../view/BoardView";
 import { LevelView } from "../view/LevelView";
 
 export class LevelController {
@@ -65,10 +64,12 @@ export class LevelController {
             config.verticalTileCount,
             config.tileWidth,
             config.tileHeight,
-            this.board,
             this.boardEventEmmiter,
             () => this.interactionPolicy.canAcceptBoardInput(this.getInteractionState())
         );
+
+        const tileViewModels = this.board.getAllTiles().map(tile => this.levelView.boardView.createTileViewModel(tile));
+        this.levelView.boardView.setupTileViews(tileViewModels);
         
         this.boardEventEmmiter.on(TileSelectedEventName, this.handleTileSelected);
         
@@ -176,7 +177,7 @@ export class LevelController {
 
     private createBoardUpdateViewModel(): BoardUpdateViewModel {
         const newTiles = this.board.dropMoves
-            .filter(move => move.fromRow === this.config.verticalTileCount)
+            .filter(move => move.fromPosition.row === this.config.verticalTileCount)
             .map(move => move.tile);
 
         const firstSwapTileViewModel = this.levelView.boardView.createTileViewModel(this.board.swapTile[0]);
@@ -185,8 +186,10 @@ export class LevelController {
         return {
             swapTileModels: [firstSwapTileViewModel, secondSwapTileViewModel],
             collapseTiles: this.board.tilesForMoveDown,
-            dropMoves: this.board.dropMoves,
-            createdSuperTile: this.board.createdSuperTile,
+            dropMoves: this.board.dropMoves.map(dropMove => ({
+                tile: dropMove.tile,
+                fromPosition: this.levelView.boardView.getViewTilePositionBy(dropMove.fromPosition), toPosition: this.levelView.boardView.getViewTilePositionBy(dropMove.toPosition)})),
+            createdSuperTile: this.levelView.boardView.createTileViewModel(this.board.createdSuperTile),
             newTiles,
             verticalTileCount: this.config.verticalTileCount,
         };

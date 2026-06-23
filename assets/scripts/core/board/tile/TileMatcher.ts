@@ -1,5 +1,5 @@
-import { GameConfig } from "../config/GameConfig";
-import { Board } from "./Board";
+import { GameConfig } from "../../../config/GameConfig";
+import { Board } from "../Board";
 import { Position, Tile, TileType } from "./Tile";
 
 export class TileMatcher {

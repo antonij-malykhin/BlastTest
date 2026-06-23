@@ -1,8 +1,8 @@
-﻿import { BoardView } from "../view/BoardView";
-import { Board } from "./Board";
+﻿import { BoardView } from "../../view/BoardView";
+import { Board } from "../board/Board";
 import { BoosterType } from "./BoosterType";
 import { BoosterActivateResult, IBoosterAction } from "./IBoosterAction";
-import { Tile } from "./Tile";
+import { Tile } from "../board/tile/Tile";
 
 export class TeleportBoosterAction implements IBoosterAction {
     public readonly type = BoosterType.Teleport;
@@ -67,6 +67,7 @@ export class TeleportBoosterAction implements IBoosterAction {
 
     private swapTiles(firstTile: Tile, secondTile: Tile): void {
         this.board.swapTilesAt(firstTile.position, secondTile.position);
+        this.boardView.swapTiles(firstTile, secondTile);
     }
 }
 

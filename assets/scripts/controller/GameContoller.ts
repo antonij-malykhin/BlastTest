@@ -1,8 +1,8 @@
 import { GameConfig } from "../config/GameConfig";
 import { LevelViewFactory } from "../factory/LevelViewFactory";
 import { TileViewFactory } from "../factory/TileViewFactory";
-import { LevelLoseEvent, LevelWinEvent, RestartEventName } from "../GameEvents";
-import { GameState } from "../model/GameState";
+import { LevelLoseEvent, LevelWinEvent, RestartEventName } from "../infrastucture/GameEvents";
+import { GameState } from "../core/GameState";
 import { GameView } from "../view/GameView";
 import { LevelController } from "./LevelController";
 
